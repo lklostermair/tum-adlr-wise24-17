@@ -58,6 +58,8 @@ pip install -r requirements.txt
    ```
    Access the notebook via external IP address of your Google Compute Engine instance.
 
-### 6. Evaluating the Models
-After training, model checkpoints and metrics will be saved in the `results/` directory. You can evaluate the performance and visualize results using the stored metrics.
+## External Repositories
+
+This project makes use of an adapted version of the code from the [ibinn_imagenet repository](https://github.com/RayDeeA/ibinn_imagenet), developed by RayDeeA. Proper credit is given according to the original licensing terms.
+
 
