@@ -11,6 +11,8 @@ This repository is structured to facilitate navigation within the project.
 .
 |-- data/
 |
+|-- literature/            # .pdf files of supporting literature
+|
 |-- models/
 |   |-- existing_model/    # Existing neural network to be adapted
 |   |-- benchmark_model/   # Benchmark classifier architecture
