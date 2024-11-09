@@ -62,4 +62,7 @@ pip install -r requirements.txt
 
 This project makes use of an adapted version of the code from the [ibinn_imagenet repository](https://github.com/RayDeeA/ibinn_imagenet), developed by RayDeeA. Proper credit is given according to the original licensing terms.
 
+## External Datasets
+
+This project uses the dataset from [DLR-TactMat](https://dlr-alr.github.io/dlr-tactmat/). Proper credit is given according to the original licensing terms.
 
