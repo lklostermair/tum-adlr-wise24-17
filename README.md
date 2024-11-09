@@ -1,7 +1,7 @@
 # ADLR project repository for Team 17
 
 ## Overview
-This project aims to adapt the Network described in [Mackowiak 2020][] for a tactile classification task, then benchmark it against the classifier architecture described in [Tulbure 2018][]. We will be using Google Compute Engine and Python for all implementations.
+This project aims to adapt the Network described in [Mackowiak, 2020](literature/Mackowiak_paper.pdf) for a tactile classification task, then benchmark it against the classifier architecture described in [Tulbure et al., 2018](literature/Baueml_paper.pdf). We will be using Google Compute Engine and Python for all implementations.
 
 This repository is structured to facilitate navigation within the project.
 
