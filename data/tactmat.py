@@ -46,13 +46,3 @@ class tactileDataModule:
             test_loader = DataLoader(self.dataset, batch_size=self.batch_size, sampler=SubsetRandomSampler(test_indices))
 
             yield train_loader, test_loader
-
-    def split_data(self, train_size=0.8):
-        train_len = int(len(self.dataset) * train_size)
-        val_len = len(self.dataset) - train_len
-        train_dataset, val_dataset = random_split(self.dataset, [train_len, val_len])
-        
-        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False)
-        
-        return train_loader, val_loader
