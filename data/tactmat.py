@@ -35,14 +35,15 @@ class tactileDataModule:
         self.k_folds = k_folds
 
         self.dataset = tactileDataset(h5_file)
-        self.sampler = StratifiedKFold(n_splits=k_folds, shuffle=True)
+        self.sampler_train_test = StratifiedKFold(n_splits=k_folds, shuffle=True)
+        self.sampler_train_val = StratifiedKFold(n_splits=k_folds, shuffle=True)
 
     def get_data_loaders(self):
         indices = np.arange(len(self.dataset))
         labels = self.dataset.labels
 
-        for train_indices, test_indices in self.sampler.split(indices, labels):
-            train_loader = DataLoader(self.dataset, batch_size=self.batch_size, sampler=SubsetRandomSampler(train_indices))
-            test_loader = DataLoader(self.dataset, batch_size=self.batch_size, sampler=SubsetRandomSampler(test_indices))
+        train_indices, test_indices = self.sampler.split(indices, labels)
+        train_loader = DataLoader(self.dataset, batch_size=self.batch_size, sampler=SubsetRandomSampler(train_indices))
+        test_loader = DataLoader(self.dataset, batch_size=self.batch_size, sampler=SubsetRandomSampler(test_indices))
 
-            yield train_loader, test_loader
+        return train_loader, test_loader
