@@ -9,7 +9,7 @@ This repository is structured to facilitate navigation within the project.
 
 ```
 .
-|-- data/
+|-- data/                  # data used for the models (tactmat, imagenet)
 |
 |-- literature/            # .pdf files of supporting literature
 |
@@ -23,7 +23,7 @@ This repository is structured to facilitate navigation within the project.
 |
 |-- results/
 |
-|-- visualization/
+|-- ibinn_model/           # Existing Information Bottleneck Neural Network repo
 |
 |-- requirements.txt       # List of dependencies for the project
 |-- README.md              # Project description and setup instructions
@@ -37,26 +37,13 @@ git clone <repo-url>
 ```
 
 ### 2. Install Dependencies
-Create a virtual environment and install the dependencies from `requirements.txt`:
+Create a virtual environment and install the dependencies from `requirements.py`:
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+python3 installer.py
 ```
-
-### 3. Running Notebooks on Google Compute Engine
-1. Connect to Google Compute Engine instance.
-2. Upload the repository or clone it directly.
-3. Install Jupyter Notebook using the following command:
-   ```bash
-   pip install jupyter
-   ```
-4. Launch Jupyter Notebook to work on `.ipynb` files:
-   ```bash
-   jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser
-   ```
-   Access the notebook via external IP address of your Google Compute Engine instance.
 
 ## External Repositories
 
