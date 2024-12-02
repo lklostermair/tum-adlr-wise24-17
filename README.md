@@ -9,24 +9,28 @@ This repository is structured to facilitate navigation within the project.
 
 ```
 .
-|-- data/                  # data used for the models (tactmat, imagenet)
+|-- data/                   # data used for the models (tactmat, imagenet)
 |
-|-- literature/            # .pdf files of supporting literature
+|-- literature/             # .pdf files of supporting literature
 |
 |-- models/
-|   |-- existing_model/    # Existing neural network to be adapted
-|   |-- benchmark_model/   # Benchmark classifier architecture
+|   |-- TactNetII_model/    # NN adapted from paper "Superhuman Performance and Tactile Material Classification"
+|   |-- TBD/                # --
 |
 |-- notebooks/
 |
 |-- scripts/
+|   |-- train/              # Script for training models
+|   |-- uncertainty/        # Script for Monte Carlo Dropout (Uncertainty Metrics)
+|   |-- visualization/      # Script for visualization of all metrics
 |
-|-- results/
+|-- output/                 # Storage of all outputs
 |
-|-- ibinn_model/           # Existing Information Bottleneck Neural Network repo
+|-- ibinn_model/            # Existing Information Bottleneck Neural Network repo
 |
-|-- requirements.txt       # List of dependencies for the project
-|-- README.md              # Project description and setup instructions
+|-- requirements.txt        # List of dependencies for the project
+|-- requirements_cpu.txt        # List of dependencies for the project when used in CPU
+|-- README.md               # Project description and setup instructions
 ```
 ## Setup Instructions
 
@@ -37,12 +41,10 @@ git clone <repo-url>
 ```
 
 ### 2. Install Dependencies
-Create a virtual environment and install the dependencies from `requirements.py`:
+Create a virtual environment and install the dependencies from `requirements.txt` (use `requirements_cpu.txt` if working on CPU):
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-python3 installer.py
+pip install -r requirements.txt
 ```
 
 ## External Repositories
