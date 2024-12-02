@@ -19,6 +19,16 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 output_dir = "output"  # Define the output directory
 os.makedirs(output_dir, exist_ok=True)
 
+def save_checkpoint(state, filename="checkpoint.pth.tar"):
+    torch.save(state, filename)
+
+def load_checkpoint(checkpoint_path, model, optimizer):
+    checkpoint = torch.load(checkpoint_path)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    start_epoch = checkpoint['epoch']
+    return model, optimizer, start_epoch
+
 def train_model(model, num_epochs=100, batch_size=32, learning_rate=1e-4, patience=10):
     print("Initializing dataset...")
     # Initialize dataset
@@ -85,6 +95,19 @@ def train_model(model, num_epochs=100, batch_size=32, learning_rate=1e-4, patien
         val_accuracy = val_correct / len(val_dataset)
         val_losses.append(val_loss)
         val_accuracies.append(val_accuracy)
+
+        # Save checkpoint every 25 epochs
+        if (epoch + 1) % 25 == 0:
+            checkpoint_path = os.path.join(output_dir, f"checkpoint_epoch_{epoch + 1}.pth.tar")
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'train_losses': train_losses,
+                'val_losses': val_losses,
+                'val_accuracies': val_accuracies
+            }, filename=checkpoint_path)
+            print(f"Saved checkpoint at epoch {epoch + 1}")
 
         # Early stopping and model saving
         if val_loss < best_val_loss:
