@@ -3,7 +3,6 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-
 class TactileMaterialDataset(Dataset):
     def __init__(self, file_path, split='train', train_split=0.8):
         """
@@ -19,6 +18,9 @@ class TactileMaterialDataset(Dataset):
             materials = dataset['materials'][:]
             materials = [m.decode('utf-8') for m in materials]  # Decode material names if necessary
 
+        # Set seed for reproducibility
+        np.random.seed(42)
+
         # Shuffle samples within each class
         for i in range(samples.shape[0]):
             np.random.shuffle(samples[i])
@@ -27,12 +29,18 @@ class TactileMaterialDataset(Dataset):
         total_size = samples.shape[1]  # Number of samples per class
         train_size = int(train_split * total_size)
 
+        # Generate indices for splitting
+        indices = np.arange(total_size)
+        np.random.shuffle(indices)
+        train_indices = indices[:train_size]
+        val_indices = indices[train_size:]
+
         if split == 'train':
-            self.data = samples[:, :train_size, ...]  # Training samples
-            self.labels = np.repeat(np.arange(samples.shape[0]), train_size)  # Class labels
+            self.data = samples[:, train_indices, ...]  # Training samples
+            self.labels = np.repeat(np.arange(samples.shape[0]), len(train_indices))  # Class labels
         elif split == 'val':
-            self.data = samples[:, train_size:, ...]  # Validation samples
-            self.labels = np.repeat(np.arange(samples.shape[0]), total_size - train_size)
+            self.data = samples[:, val_indices, ...]  # Validation samples
+            self.labels = np.repeat(np.arange(samples.shape[0]), len(val_indices))
         else:
             raise ValueError("Invalid split value. Must be 'train' or 'val'.")
 
@@ -43,11 +51,12 @@ class TactileMaterialDataset(Dataset):
         self.data = torch.tensor(self.data, dtype=torch.float32).unsqueeze(1)  # Add channel dimension
         self.labels = torch.tensor(self.labels, dtype=torch.long)
 
+        # Debugging
+        print(f"{split.capitalize()} dataset size: {len(self.data)}")
+        assert len(self.data) == len(self.labels), "Data and labels length mismatch!"
+
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
-
-
-

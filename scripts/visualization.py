@@ -112,7 +112,7 @@ if __name__ == "__main__":
     # Load losses
     if os.path.exists(losses_path):
         with open(losses_path, "rb") as f:
-            losses = pickle.load()
+            losses = pickle.load(f)
             train_losses = losses["train_losses"]
             val_losses = losses["val_losses"]
         print("Loaded loss metrics.")
@@ -123,7 +123,8 @@ if __name__ == "__main__":
     # Load validation accuracies
     if os.path.exists(val_accuracies_path):
         with open(val_accuracies_path, "rb") as f:
-            val_accuracies = pickle.load()
+            val_accuracies_data = pickle.load(f)
+            val_accuracies = val_accuracies_data["val_accuracies"]
         print("Loaded validation accuracies.")
 
         # Plot accuracy curve
@@ -151,11 +152,11 @@ if __name__ == "__main__":
     # Load class uncertainty results    
     if os.path.exists(class_uncertainty_path):
         with open(class_uncertainty_path, "rb") as f:
-            class_uncertainties = pickle.load()
+            class_uncertainties = pickle.load(f)
         print("Loaded class-wise uncertainties.")
 
         # Visualize
-        visualize_class_uncertainty(class_uncertainties, save_path=class_uncertainty_plot_path)
+        plot_class_uncertainty(class_uncertainties, save_path=class_uncertainty_plot_path)
     else:
         print(f"Class uncertainty file not found at {class_uncertainty_path}")
 
