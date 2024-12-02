@@ -5,10 +5,10 @@ import numpy as np
 
 
 # Model Definition
-class MCTestTacNet(nn.Module):
-    def __init__(self):
-        super(MCTestTacNet, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=(15, 5))
+class TactNetII(nn.Module):
+    def __init__(self, input_channels, num_classes):
+        super(TactNetII, self).__init__()
+        self.conv1 = nn.Conv2d(input_channels, 32, kernel_size=(15, 5))
         self.bn1 = nn.BatchNorm2d(32)
         self.pool1 = nn.MaxPool2d(kernel_size=(10, 1), stride=1)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=(15, 5))
@@ -18,13 +18,11 @@ class MCTestTacNet(nn.Module):
         self.bn3 = nn.BatchNorm2d(128)
         self.pool3 = nn.MaxPool2d(kernel_size=(10, 1), stride=1)
         self.dropout = nn.Dropout(0.8)
-
         # Dummy forward pass to calculate the flattened size
         self.flattened_size = self._get_flatten_size()
-
         self.fc1 = nn.Linear(self.flattened_size, 512)
         self.bn4 = nn.BatchNorm1d(512)
-        self.fc2 = nn.Linear(512, 36)
+        self.fc2 = nn.Linear(512, num_classes)
 
     def _get_flatten_size(self): # helper function for dynamic sizing of linear layer
         with torch.no_grad():
