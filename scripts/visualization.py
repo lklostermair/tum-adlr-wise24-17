@@ -23,7 +23,7 @@ def plot_loss_curve(train_losses, val_losses, save_path=None):
     plt.legend()
     plt.grid()
     if save_path:
-        plt.savefig(save_path)
+        plt.savefig(save_path, bbox_inches='tight')
         print(f"Loss curve saved at {save_path}")
     else:
         plt.show()
@@ -41,7 +41,7 @@ def plot_accuracy_curve(val_accuracies, save_path=None):
     plt.legend()
     plt.grid()
     if save_path:
-        plt.savefig(save_path)
+        plt.savefig(save_path, bbox_inches='tight')
         print(f"Accuracy curve saved at {save_path}")
     else:
         plt.show()
@@ -56,23 +56,29 @@ def plot_confusion_matrix(labels, preds, class_names, save_path=None):
     disp.plot(cmap="viridis", xticks_rotation="vertical")
     plt.title("Confusion Matrix")
     if save_path:
-        plt.savefig(save_path)
+        plt.savefig(save_path, bbox_inches='tight')
         print(f"Confusion matrix saved at {save_path}")
     else:
         plt.show()
 
 def plot_uncertainty(uncertainties, save_path=None):
     """
-    Plot the uncertainty distribution.
+    Plot the uncertainty distribution, sorted from small to big, with a line indicating the mean.
     
     """
+    sorted_uncertainties = np.sort(uncertainties.mean(axis=1))
+    mean_uncertainty = np.mean(sorted_uncertainties)
+    
     plt.figure(figsize=(10, 5))
-    plt.hist(uncertainties.mean(axis=1), bins=20, alpha=0.7, color='blue')
-    plt.xlabel("Uncertainty")
-    plt.ylabel("Frequency")
-    plt.title("Uncertainty Distribution")
+    plt.plot(sorted_uncertainties, label='Uncertainty', color='blue')
+    plt.axhline(mean_uncertainty, color='red', linestyle='--', label='Mean Uncertainty')
+    plt.xlabel("Samples")
+    plt.ylabel("Uncertainty")
+    plt.title("Sorted Uncertainty Distribution with Mean")
+    plt.legend()
+    plt.grid()
     if save_path:
-        plt.savefig(save_path)
+        plt.savefig(save_path, bbox_inches='tight')
         print(f"Uncertainty plot saved at {save_path}")
     else:
         plt.show()
@@ -89,14 +95,38 @@ def plot_class_uncertainty(class_uncertainties, save_path=None):
     plt.title("Class-wise Average Uncertainty")
     plt.xticks(classes)
     if save_path:
-        plt.savefig(save_path)
+        plt.savefig(save_path, bbox_inches='tight')
         print(f"Class-wise uncertainty plot saved at {save_path}")
     else:
         plt.show()
-        
-if __name__ == "__main__":
-    
 
+def plot_class_accuracy(labels, preds, class_names, save_path=None):
+    """
+    Plot accuracy across classes from highest to smallest.
+    
+    """
+    cm = confusion_matrix(labels, preds)
+    correct_preds = np.diag(cm)
+    total_per_class = cm.sum(axis=1)
+    class_accuracies = correct_preds / total_per_class
+    sorted_indices = np.argsort(class_accuracies)[::-1]
+
+    sorted_class_names = [class_names[i] for i in sorted_indices]
+    sorted_accuracies = class_accuracies[sorted_indices]
+
+    plt.figure(figsize=(12, 6))
+    plt.bar(sorted_class_names, sorted_accuracies, color="green", alpha=0.7)
+    plt.xlabel("Class")
+    plt.ylabel("Accuracy")
+    plt.title("Class-wise Accuracy (Sorted)")
+    plt.xticks(rotation=90)
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight')
+        print(f"Class-wise accuracy plot saved at {save_path}")
+    else:
+        plt.show()
+
+if __name__ == "__main__":
     # Define paths
     output_dir = "output"
     losses_path = os.path.join(output_dir, "losses.pkl")
@@ -108,6 +138,7 @@ if __name__ == "__main__":
     uncertainty_plot_save_path = os.path.join(output_dir, "uncertainty_distribution.png")
     class_uncertainty_path = "output/class_uncertainties.pkl"
     class_uncertainty_plot_path = "output/class_uncertainty.png"
+    class_accuracy_plot_path = os.path.join(output_dir, "class_accuracy.png")
 
     # Load losses
     if os.path.exists(losses_path):
@@ -149,6 +180,14 @@ if __name__ == "__main__":
             save_path=confusion_matrix_save_path,
         )
 
+        # Plot class accuracy
+        plot_class_accuracy(
+            labels=ground_truths,
+            preds=predictions,
+            class_names=[f"Class {i}" for i in range(len(set(ground_truths)))],
+            save_path=class_accuracy_plot_path
+        )
+
     # Load class uncertainty results    
     if os.path.exists(class_uncertainty_path):
         with open(class_uncertainty_path, "rb") as f:
@@ -160,5 +199,5 @@ if __name__ == "__main__":
     else:
         print(f"Class uncertainty file not found at {class_uncertainty_path}")
 
-
+    # Ensure that all plots are saved
     print("Visualization complete. Check the output directory for saved plots.")
