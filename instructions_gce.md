@@ -14,7 +14,7 @@ You will see a command line and youre credentials logged in.
 ```
 <name>@adlr-trainingspipeline:~$
 ```
-Now navigate to the local repository b typing
+Now navigate to the local repository by typing
 ```
 cd tum-adlr-wise24-17
 ```
@@ -25,7 +25,7 @@ You are now in the working repository.
 To have a clean working schedule and not any accidential merging issues, we have to ensure that we have pulled the latest commits from the origin main. To be able to do so, we need to initialize a personal access token (PAT) from github, as password logins are not supported. To do so, go into your **Github Account>Settings>Developer Settings>Personal acces tokens>Tokens (classic)**. There, set up a new token and name it properly (e.g. TUM ADLR GCE Instance). Github will generate this token only once, so make sure you save it (I saved it in a word file with a command cheat sheet). It should look something like this:
 
 ```
-ghp_kUHp5DTaseE5MSCfK6Skp8HegNnvKLsTu89
+ghp_kUHp5DTaseE5MSCfK6Skp8HegNnvKLsTu89 (not a real token)
 ```
 Use this PAT when prompted for your password within the VM.
 
