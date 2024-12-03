@@ -12,6 +12,8 @@ from utils.data_loader import TactileMaterialDataset
 from models.TactNetII_model import TactNetII
 from torch.utils.data import DataLoader
 import torch
+import torch.nn.functional as F
+import matplotlib.cm as cm
 
 # Define output directory
 output_dir = "output"
@@ -69,7 +71,11 @@ for batch_idx, batch in enumerate(val_loader):
     batch_predictions = torch.cat(batch_predictions, dim=1)  # Shape: [num_samples, batch_size, num_classes]
 
     # Calculate mean prediction, variance, and entropy
-    mean_prediction = batch_predictions.mean(dim=0).numpy()  # Mean across MC samples
+    
+
+    # Apply softmax to the model output
+    mean_prediction = F.softmax(batch_predictions.mean(dim=0), dim=-1).numpy()
+
     variance = batch_predictions.var(dim=0).numpy()  # Variance across MC samples
     entropy = calculate_entropy(mean_prediction)  # Entropy of mean predictions
 
@@ -94,7 +100,7 @@ classes = all_predictions.shape[-1]
 for cls in range(classes):
     # Extract entropies for the current class
     class_entropies = all_entropies[all_labels == cls]
-    entropies[f'class_{cls}'] = class_entropies
+    entropies[f'{cls}'] = class_entropies
 
 # Calculate mean entropy per class and sort
 mean_entropies = {cls: np.mean(entropies[cls]) for cls in entropies.keys()}
@@ -115,35 +121,26 @@ for idx, cls in enumerate(sorted_classes_entropy):
 plt.savefig(os.path.join(output_dir, 'class_wise_uncertainty_boxplot_entropy.png'))
 plt.close()
 
+
 # 2. Scatter Plot of Confidence vs. Uncertainty (Entropy)
 confidences = np.max(all_predictions, axis=-1)  # Confidence as the maximum mean class probability
 entropy_values = all_entropies
+labels = all_labels
 
 plt.figure(figsize=(10, 6))
-plt.scatter(confidences, entropy_values, alpha=0.6)
+
+# Get a color map to map each class to a unique color
+unique_labels = np.unique(labels)
+colors = cm.get_cmap('tab10', len(unique_labels))
+
+# Plot each class in a different color
+for idx, cls in enumerate(unique_labels):
+    class_mask = labels == cls
+    plt.scatter(confidences[class_mask], entropy_values[class_mask], color=colors(idx), label=f'Class {cls}', alpha=0.6)
+
 plt.xlabel('Confidence')
 plt.ylabel('Entropy (Uncertainty)')
-plt.title('Scatter Plot of Confidence vs. Uncertainty')
-plt.savefig(os.path.join(output_dir, 'scatter_plot_confidence_vs_uncertainty.png'))
-plt.close()
-
-# 3. Variance Box Plot with Whiskers for Each Class (Sorted)
-variances = {}
-for cls in range(classes):
-    # Extract variances for the current class
-    class_variances = all_variances[all_labels == cls, cls]
-    variances[f'class_{cls}'] = class_variances
-
-# Calculate mean variance per class and sort
-mean_variances = {cls: np.mean(variances[cls]) for cls in variances.keys()}
-sorted_classes_variance = sorted(mean_variances, key=mean_variances.get)
-sorted_variances = [variances[cls] for cls in sorted_classes_variance]
-
-plt.figure(figsize=(12, 6))
-sns.boxplot(data=sorted_variances)
-plt.xticks(ticks=range(len(sorted_classes_variance)), labels=sorted_classes_variance)
-plt.ylabel('Variance')
-plt.xlabel('Classes (Sorted by Mean Variance)')
-plt.title('Class-wise Variance Box Plot with Whiskers (Sorted)')
-plt.savefig(os.path.join(output_dir, 'class_wise_variance_boxplot.png'))
+plt.title('Scatter Plot of Confidence vs. Uncertainty (Colored by Class)')
+plt.legend(loc='upper right', bbox_to_anchor=(1.15, 1))  # Adjust legend to fit properly
+plt.savefig(os.path.join(output_dir, 'scatter_plot_confidence_vs_uncertainty_colored.png'))
 plt.close()
