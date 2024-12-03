@@ -44,19 +44,32 @@ for batch in val_loader:
     input_data, labels = batch
     input_data = input_data.to(device)
     
-    # Perform Monte Carlo Dropout Inference in mini-batches to save memory
     batch_predictions = []
     batch_size = input_data.size(0)
-    minibatch_size = 8  # Reduce memory usage by processing minibatches
-    for start in range(0, batch_size, minibatch_size):
-        end = start + minibatch_size
-        minibatch_data = input_data[start:end]
-        minibatch_result = monte_carlo_inference(model, minibatch_data, num_samples=n_samples)
-        batch_predictions.append(minibatch_result["mean_prediction"].cpu().detach())
-        
-    mean_prediction = torch.cat(batch_predictions, dim=0).numpy()  # Concatenate minibatch predictions
-    variance = np.var(mean_prediction, axis=0)  # Variance across MC samples
-    entropy = calculate_entropy(mean_prediction)
+    minibatch_size = 4  # Further reduce mini-batch size to manage memory
+
+    with torch.no_grad():
+        for start in range(0, batch_size, minibatch_size):
+            end = start + minibatch_size
+            minibatch_data = input_data[start:end]
+
+            minibatch_preds = []
+            for _ in range(n_samples):
+                prediction = model(minibatch_data).cpu().detach()  # Move to CPU after forward pass
+                minibatch_preds.append(prediction)
+
+            minibatch_preds = torch.stack(minibatch_preds)  # Shape: [num_samples, minibatch_size, num_classes]
+            batch_predictions.append(minibatch_preds)
+
+            torch.cuda.empty_cache()  # Clear cache to free up memory
+
+    # Concatenate minibatch predictions along the batch dimension
+    batch_predictions = torch.cat(batch_predictions, dim=1)  # Shape: [num_samples, batch_size, num_classes]
+
+    # Calculate mean prediction, variance, and entropy
+    mean_prediction = batch_predictions.mean(dim=0).numpy()  # Mean across MC samples
+    variance = batch_predictions.var(dim=0).numpy()  # Variance across MC samples
+    entropy = calculate_entropy(mean_prediction)  # Entropy of mean predictions
 
     # Store the predictions, variances, entropies, and labels
     all_predictions.append(mean_prediction)
@@ -70,61 +83,4 @@ all_variances = np.concatenate(all_variances, axis=0)  # Shape: [total_samples, 
 all_entropies = np.concatenate(all_entropies, axis=0)  # Shape: [total_samples]
 all_labels = np.concatenate(all_labels, axis=0)  # Shape: [total_samples]
 
-# Calculate Entropy and Variance per Class
-entropies = {}
-variances = {}
-classes = all_predictions.shape[-1]
-
-for cls in range(classes):
-    # Extract entropies and variances for the current class
-    class_entropies = all_entropies[all_labels == cls]
-    class_variances = all_variances[all_labels == cls, cls]
-    entropies[f'class_{cls}'] = class_entropies
-    variances[f'class_{cls}'] = class_variances
-
-# Plotting
-
-# 1. Class-Wise Uncertainty Box Plot (Entropy)
-mean_entropies = {cls: np.mean(entropies[cls]) for cls in entropies.keys()}
-sorted_classes_entropy = sorted(mean_entropies, key=mean_entropies.get)
-sorted_entropies = [entropies[cls] for cls in sorted_classes_entropy]
-
-plt.figure(figsize=(12, 6))
-sns.boxplot(data=sorted_entropies)
-plt.xticks(ticks=range(len(sorted_classes_entropy)), labels=sorted_classes_entropy)
-plt.ylabel('Entropy (Uncertainty)')
-plt.xlabel('Classes (Sorted by Mean Entropy)')
-plt.title('Class-wise Uncertainty (Entropy) Box Plot')
-
-# Plot mean uncertainty as grey dashed line
-for idx, cls in enumerate(sorted_classes_entropy):
-    plt.plot([idx - 0.2, idx + 0.2], [mean_entropies[cls], mean_entropies[cls]], color='grey', linestyle='--')
-
-plt.savefig(os.path.join(output_dir, 'class_wise_uncertainty_boxplot_entropy.png'))
-plt.close()
-
-# 2. Scatter Plot of Confidence vs. Uncertainty (Entropy)
-confidences = np.max(all_predictions, axis=-1)  # Confidence as the maximum mean class probability
-entropy_values = all_entropies
-
-plt.figure(figsize=(10, 6))
-plt.scatter(confidences, entropy_values, alpha=0.6)
-plt.xlabel('Confidence')
-plt.ylabel('Entropy (Uncertainty)')
-plt.title('Scatter Plot of Confidence vs. Uncertainty')
-plt.savefig(os.path.join(output_dir, 'scatter_plot_confidence_vs_uncertainty.png'))
-plt.close()
-
-# 3. Variance Box Plot with Whiskers for Each Class (Sorted)
-mean_variances = {cls: np.mean(variances[cls]) for cls in variances.keys()}
-sorted_classes_variance = sorted(mean_variances, key=mean_variances.get)
-sorted_variances = [variances[cls] for cls in sorted_classes_variance]
-
-plt.figure(figsize=(12, 6))
-sns.boxplot(data=sorted_variances)
-plt.xticks(ticks=range(len(sorted_classes_variance)), labels=sorted_classes_variance)
-plt.ylabel('Variance')
-plt.xlabel('Classes (Sorted by Mean Variance)')
-plt.title('Class-wise Variance Box Plot with Whiskers (Sorted)')
-plt.savefig(os.path.join(output_dir, 'class_wise_variance_boxplot.png'))
-plt.close()
+# Plotting and further analysis...
