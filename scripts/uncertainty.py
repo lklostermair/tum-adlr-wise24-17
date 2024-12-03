@@ -23,7 +23,6 @@ def calculate_entropy(probabilities):
     probabilities = np.clip(probabilities, 1e-10, 1.0)  # Clip probabilities to avoid log(0)
     return -np.sum(probabilities * np.log(probabilities), axis=-1)
 
-
 # Load trained model
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model_path = "output/best_model.pt"  # Update the path to your best model
@@ -34,7 +33,7 @@ model.eval()
 # Load dataset for evaluation
 val_dataset = TactileMaterialDataset('data/raw/tactmat.h5', split='val', train_split=0.8)
 val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
-n_samples = 100  # Number of Monte Carlo samples
+n_samples = 50  # Number of Monte Carlo samples
 
 # Iterate over DataLoader and perform Monte Carlo Dropout Inference
 all_predictions = []
@@ -42,7 +41,8 @@ all_variances = []
 all_entropies = []
 all_labels = []
 
-for batch in val_loader:
+for batch_idx, batch in enumerate(val_loader):
+    print(f"Processing batch {batch_idx + 1}/{len(val_loader)}")
     input_data, labels = batch
     input_data = input_data.to(device)
     
@@ -85,4 +85,65 @@ all_variances = np.concatenate(all_variances, axis=0)  # Shape: [total_samples, 
 all_entropies = np.concatenate(all_entropies, axis=0)  # Shape: [total_samples]
 all_labels = np.concatenate(all_labels, axis=0)  # Shape: [total_samples]
 
-# Plotting and further analysis...
+# Plotting
+
+# 1. Class-Wise Uncertainty Box Plot (Entropy)
+entropies = {}
+classes = all_predictions.shape[-1]
+
+for cls in range(classes):
+    # Extract entropies for the current class
+    class_entropies = all_entropies[all_labels == cls]
+    entropies[f'class_{cls}'] = class_entropies
+
+# Calculate mean entropy per class and sort
+mean_entropies = {cls: np.mean(entropies[cls]) for cls in entropies.keys()}
+sorted_classes_entropy = sorted(mean_entropies, key=mean_entropies.get)
+sorted_entropies = [entropies[cls] for cls in sorted_classes_entropy]
+
+plt.figure(figsize=(12, 6))
+sns.boxplot(data=sorted_entropies)
+plt.xticks(ticks=range(len(sorted_classes_entropy)), labels=sorted_classes_entropy)
+plt.ylabel('Entropy (Uncertainty)')
+plt.xlabel('Classes (Sorted by Mean Entropy)')
+plt.title('Class-wise Uncertainty (Entropy) Box Plot')
+
+# Plot mean uncertainty as grey dashed line
+for idx, cls in enumerate(sorted_classes_entropy):
+    plt.plot([idx - 0.2, idx + 0.2], [mean_entropies[cls], mean_entropies[cls]], color='grey', linestyle='--')
+
+plt.savefig(os.path.join(output_dir, 'class_wise_uncertainty_boxplot_entropy.png'))
+plt.close()
+
+# 2. Scatter Plot of Confidence vs. Uncertainty (Entropy)
+confidences = np.max(all_predictions, axis=-1)  # Confidence as the maximum mean class probability
+entropy_values = all_entropies
+
+plt.figure(figsize=(10, 6))
+plt.scatter(confidences, entropy_values, alpha=0.6)
+plt.xlabel('Confidence')
+plt.ylabel('Entropy (Uncertainty)')
+plt.title('Scatter Plot of Confidence vs. Uncertainty')
+plt.savefig(os.path.join(output_dir, 'scatter_plot_confidence_vs_uncertainty.png'))
+plt.close()
+
+# 3. Variance Box Plot with Whiskers for Each Class (Sorted)
+variances = {}
+for cls in range(classes):
+    # Extract variances for the current class
+    class_variances = all_variances[all_labels == cls, cls]
+    variances[f'class_{cls}'] = class_variances
+
+# Calculate mean variance per class and sort
+mean_variances = {cls: np.mean(variances[cls]) for cls in variances.keys()}
+sorted_classes_variance = sorted(mean_variances, key=mean_variances.get)
+sorted_variances = [variances[cls] for cls in sorted_classes_variance]
+
+plt.figure(figsize=(12, 6))
+sns.boxplot(data=sorted_variances)
+plt.xticks(ticks=range(len(sorted_classes_variance)), labels=sorted_classes_variance)
+plt.ylabel('Variance')
+plt.xlabel('Classes (Sorted by Mean Variance)')
+plt.title('Class-wise Variance Box Plot with Whiskers (Sorted)')
+plt.savefig(os.path.join(output_dir, 'class_wise_variance_boxplot.png'))
+plt.close()
