@@ -121,7 +121,6 @@ for idx, cls in enumerate(sorted_classes_entropy):
 plt.savefig(os.path.join(output_dir, 'class_wise_uncertainty_boxplot_entropy.png'))
 plt.close()
 
-
 # 2. Scatter Plot of Confidence vs. Uncertainty (Entropy)
 confidences = np.max(all_predictions, axis=-1)  # Confidence as the maximum mean class probability
 entropy_values = all_entropies
@@ -131,16 +130,17 @@ plt.figure(figsize=(10, 6))
 
 # Get a color map to map each class to a unique color
 unique_labels = np.unique(labels)
-colors = cm.get_cmap('tab10', len(unique_labels))
+colors = cm.get_cmap('tab10', len(unique_labels)).colors
 
 # Plot each class in a different color
 for idx, cls in enumerate(unique_labels):
     class_mask = labels == cls
-    plt.scatter(confidences[class_mask], entropy_values[class_mask], color=colors(idx), alpha=0.6)
+    plt.scatter(confidences[class_mask], entropy_values[class_mask], color=colors[idx], alpha=0.6)
 
 plt.xlabel('Confidence')
 plt.ylabel('Entropy (Uncertainty)')
 plt.title('Scatter Plot of Confidence vs. Uncertainty (Colored by Class)')
 plt.savefig(os.path.join(output_dir, 'scatter_plot_confidence_vs_uncertainty_colored.png'))
 plt.close()
+
 
