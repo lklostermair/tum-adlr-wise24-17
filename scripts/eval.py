@@ -46,7 +46,7 @@ conf_matrix = confusion_matrix(true_labels, predicted_labels)
 
 # Plot Confusion Matrix
 plt.figure(figsize=(10, 8))
-sns.heatmap(conf_matrix, annot=False, cmap='gray', linewidths=0.5, square=True, cbar=True)
+sns.heatmap(conf_matrix, annot=False, cmap='gray_r', linewidths=0.5, square=True, cbar=True)
 plt.xlabel('predicted label')
 plt.ylabel('true label')
 plt.title('Confusion Matrix')
