@@ -136,11 +136,11 @@ colors = cm.get_cmap('tab10', len(unique_labels))
 # Plot each class in a different color
 for idx, cls in enumerate(unique_labels):
     class_mask = labels == cls
-    plt.scatter(confidences[class_mask], entropy_values[class_mask], color=colors(idx), label=f'Class {cls}', alpha=0.6)
+    plt.scatter(confidences[class_mask], entropy_values[class_mask], color=colors(idx), alpha=0.6)
 
 plt.xlabel('Confidence')
 plt.ylabel('Entropy (Uncertainty)')
 plt.title('Scatter Plot of Confidence vs. Uncertainty (Colored by Class)')
-plt.legend(loc='upper right', bbox_to_anchor=(1.15, 1))  # Adjust legend to fit properly
 plt.savefig(os.path.join(output_dir, 'scatter_plot_confidence_vs_uncertainty_colored.png'))
 plt.close()
+
