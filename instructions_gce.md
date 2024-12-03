@@ -14,6 +14,10 @@ You will see a command line and youre credentials logged in.
 ```
 <name>@adlr-trainingspipeline:~$
 ```
+Connect to a tmux session so training / SSH credentials are not interrupted due to time out
+```
+tmux new -s <session_name>
+```
 Now navigate to the local repository by typing
 ```
 cd tum-adlr-wise24-17
@@ -59,4 +63,9 @@ Username: <username>
 Password: <PAT>
 ```
 
-When all changes have been commited, you can stop the VM instance in the interface.
+When finished in the VM, end the tmux session
+```bash
+tmux kill-session -t session_name
+```
+
+When all changes have been commited, you can stop the VM instance in the GCE interface.
