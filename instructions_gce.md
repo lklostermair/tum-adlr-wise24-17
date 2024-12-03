@@ -1,71 +1,96 @@
-# Instructions for running GCE
+# Instructions for Running GCE
 
 ## Overview
-We perform computation heavy tasks within the google cloud engine framework.
+We perform computation-heavy tasks within the Google Cloud Engine (GCE) framework. These instructions guide you through connecting to the VM, setting up your environment, and using Git effectively.
+
+---
 
 ## Setup Instructions
 
 ### 1. Connecting to the VM Instance
+1. Start the VM Instance:
+   - Go to the GCE interface, locate your VM, and start it.
+   
+2. Connect via SSH:
+   - Click on the VM, then click the SSH button. Allow connection with the automatically generated SSH keys.
 
-To connect to the VM Instance, start the VM and then click on it. A button "SSH" with a dropdown will show up.
-Click on the button and allow connection with SSH keys (automatically generated - so don't need to worry about anything)
+3. Access the Command Line:
+   - You should see the command line with your credentials logged in:
+     ```
+     <name>@adlr-trainingspipeline:~$
+     ```
 
-You will see a command line and youre credentials logged in.
-```
-<name>@adlr-trainingspipeline:~$
-```
-Connect to a tmux session so training / SSH credentials are not interrupted due to time out
-```
-tmux new -s <session_name>
-```
-Now navigate to the local repository by typing
-```
-cd tum-adlr-wise24-17
-```
-You are now in the working repository.
+4. Start a tmux Session:
+   - To prevent disconnection due to timeouts, connect to a `tmux` session:
+     ```
+     tmux new -s <session_name>
+     ```
 
-### 2. Setup PAT
+5. Navigate to the Local Repository:
+   - Enter the working directory:
+     ```
+     cd tum-adlr-wise24-17
+     ```
 
-To have a clean working schedule and not any accidential merging issues, we have to ensure that we have pulled the latest commits from the origin main. To be able to do so, we need to initialize a personal access token (PAT) from github, as password logins are not supported. To do so, go into your **Github Account>Settings>Developer Settings>Personal acces tokens>Tokens (classic)**. There, set up a new token and name it properly (e.g. TUM ADLR GCE Instance). Github will generate this token only once, so make sure you save it (I saved it in a word file with a command cheat sheet). It should look something like this:
+---
 
-```
-ghp_kUHp5DTaseE5MSCfK6Skp8HegNnvKLsTu89 (not a real token)
-```
-Use this PAT when prompted for your password within the VM.
+### 2. Setup Personal Access Token (PAT)
 
-### 2. Git Push/Pull
+To manage Git operations securely and avoid merge issues:
+1. Generate a PAT:
+   - In your GitHub account, go to:
+     `Settings > Developer Settings > Personal Access Tokens > Tokens (classic)`.
+   - Generate a new token and name it appropriately (e.g., "TUM ADLR GCE Instance").
+   - Save the token securely. GitHub displays it only once. Example:
+     ```
+     ghp_kUHp5DTaseE5MSCfK6Skp8HegNnvKLsTu89 (not a real token)
+     ```
 
-Now we can use our github username and our PAT to pull the latest commits into our local repository
+2. Use the PAT for Authentication:
+   - When prompted for a password in the VM, use your GitHub username and the PAT.
 
-```bash
-git pull origin main
-Username: <username>
-Password: <PAT>
-```
-When this is done, we can work in the repository just as we would on our local machine. To run scripts, simply call the python interpreter and choose the script which you want to run.
+---
 
-```bash
-python3 scripts/<example.py>
-```
+### 3. Git Push/Pull
 
-When finished on the VM, stage, commit and push all files just as you would on your local machine. Keep in mind that we don't want to upload any models onto the online repo, therefore include them in the `.gitignore`.
+1. Pull the Latest Commits:
+   - Ensure the local repository is up-to-date:
+     ```
+     git pull origin main
+     Username: <username>
+     Password: <PAT>
+     ```
 
-```bash
-git add <filename> or .
-git commit -m "insert commit log"
-git push origin <branch name> (normally main)
-```
+2. Running Scripts:
+   - Use the Python interpreter to execute scripts:
+     ```
+     python3 scripts/<example.py>
+     ```
 
-You will then be prompted to enter your credentials
+3. Stage, Commit, and Push Changes:
+   - Ensure no models are pushed (add them to `.gitignore`):
+     ```
+     git add <filename> or .
+     git commit -m "insert commit log"
+     git push origin <branch name> (normally main)
+     ```
+   - Enter credentials when prompted:
+     ```
+     Username: <username>
+     Password: <PAT>
+     ```
 
-```bash
-Username: <username>
-Password: <PAT>
-```
+---
 
-When finished in the VM, end the tmux session
-```bash
-tmux kill-session -t session_name
-```
+### 4. Ending the Session
 
-When all changes have been commited, you can stop the VM instance in the GCE interface.
+1. End the tmux Session:
+   - When finished, terminate the session:
+     ```
+     tmux kill-session -t <session_name>
+     ```
+
+2. Stop the VM:
+   - Stop the VM instance in the GCE interface.
+
+---
