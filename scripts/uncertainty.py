@@ -13,11 +13,10 @@ from models.TactNetII_model import TactNetII
 from torch.utils.data import DataLoader
 import torch
 
-
-
 # Define output directory
 output_dir = "output"
 os.makedirs(output_dir, exist_ok=True)
+torch.cuda.empty_cache()
 
 # Define function to calculate entropy
 def calculate_entropy(probabilities):
@@ -44,12 +43,20 @@ all_labels = []
 for batch in val_loader:
     input_data, labels = batch
     input_data = input_data.to(device)
-
-    # Perform Monte Carlo Dropout Inference for the current batch
-    result = monte_carlo_inference(model, input_data, num_samples=n_samples)
-    mean_prediction = result["mean_prediction"].cpu().detach().numpy()
-    variance = result["variance"].cpu().detach().numpy()
-    entropy = result["entropy"].cpu().detach().numpy()
+    
+    # Perform Monte Carlo Dropout Inference in mini-batches to save memory
+    batch_predictions = []
+    batch_size = input_data.size(0)
+    minibatch_size = 8  # Reduce memory usage by processing minibatches
+    for start in range(0, batch_size, minibatch_size):
+        end = start + minibatch_size
+        minibatch_data = input_data[start:end]
+        minibatch_result = monte_carlo_inference(model, minibatch_data, num_samples=n_samples)
+        batch_predictions.append(minibatch_result["mean_prediction"].cpu().detach())
+        
+    mean_prediction = torch.cat(batch_predictions, dim=0).numpy()  # Concatenate minibatch predictions
+    variance = np.var(mean_prediction, axis=0)  # Variance across MC samples
+    entropy = calculate_entropy(mean_prediction)
 
     # Store the predictions, variances, entropies, and labels
     all_predictions.append(mean_prediction)
