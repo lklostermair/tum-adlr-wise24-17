@@ -46,7 +46,7 @@ for batch in val_loader:
     input_data = input_data.to(device)
 
     # Perform Monte Carlo Dropout Inference for the current batch
-    result = monte_carlo_inference(model, input_data, n_samples=n_samples)
+    result = monte_carlo_inference(model, input_data, num_samples=n_samples)
     mean_prediction = result["mean_prediction"].cpu().detach().numpy()
     variance = result["variance"].cpu().detach().numpy()
     entropy = result["entropy"].cpu().detach().numpy()
