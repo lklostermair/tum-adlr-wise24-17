@@ -1,3 +1,4 @@
 # git ignore
 output/*.pth
 output/*.pth.tar
+output/best_model.pt
