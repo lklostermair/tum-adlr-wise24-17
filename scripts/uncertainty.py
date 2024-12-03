@@ -20,7 +20,9 @@ torch.cuda.empty_cache()
 
 # Define function to calculate entropy
 def calculate_entropy(probabilities):
-    return -np.sum(probabilities * np.log(probabilities + 1e-10), axis=-1)
+    probabilities = np.clip(probabilities, 1e-10, 1.0)  # Clip probabilities to avoid log(0)
+    return -np.sum(probabilities * np.log(probabilities), axis=-1)
+
 
 # Load trained model
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
