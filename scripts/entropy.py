@@ -5,15 +5,12 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.append(project_root)
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from utils.monte_carlo import monte_carlo_inference
+import torch
+import torch.nn.functional as F
+import pickle
 from utils.data_loader import TactileMaterialDataset
 from models.TactNetII_model import TactNetII
 from torch.utils.data import DataLoader
-import torch
-import torch.nn.functional as F
-import matplotlib.cm as cm
 
 # Define output directory
 output_dir = "output"
@@ -70,9 +67,6 @@ for batch_idx, batch in enumerate(val_loader):
     # Concatenate minibatch predictions along the batch dimension
     batch_predictions = torch.cat(batch_predictions, dim=1)  # Shape: [num_samples, batch_size, num_classes]
 
-    # Calculate mean prediction, variance, and entropy
-    
-
     # Apply softmax to the model output
     mean_prediction = F.softmax(batch_predictions.mean(dim=0), dim=-1).numpy()
 
@@ -91,56 +85,18 @@ all_variances = np.concatenate(all_variances, axis=0)  # Shape: [total_samples, 
 all_entropies = np.concatenate(all_entropies, axis=0)  # Shape: [total_samples]
 all_labels = np.concatenate(all_labels, axis=0)  # Shape: [total_samples]
 
-# Plotting
+# Prepare entropy metrics dictionary
+entropy_metrics = {
+    'predictions': all_predictions,
+    'variances': all_variances,
+    'entropies': all_entropies,
+    'labels': all_labels,
+    'num_mc_samples': n_samples
+}
 
-# 1. Class-Wise Uncertainty Box Plot (Entropy)
-entropies = {}
-classes = all_predictions.shape[-1]
+# Save results as a comprehensive pickle file
+entropy_metrics_path = os.path.join(output_dir, "entropy_metrics.pkl")
+with open(entropy_metrics_path, 'wb') as f:
+    pickle.dump(entropy_metrics, f)
 
-for cls in range(classes):
-    # Extract entropies for the current class
-    class_entropies = all_entropies[all_labels == cls]
-    entropies[f'{cls}'] = class_entropies
-
-# Calculate mean entropy per class and sort
-mean_entropies = {cls: np.mean(entropies[cls]) for cls in entropies.keys()}
-sorted_classes_entropy = sorted(mean_entropies, key=mean_entropies.get)
-sorted_entropies = [entropies[cls] for cls in sorted_classes_entropy]
-
-plt.figure(figsize=(12, 6))
-sns.boxplot(data=sorted_entropies)
-plt.xticks(ticks=range(len(sorted_classes_entropy)), labels=sorted_classes_entropy)
-plt.ylabel('Entropy (Uncertainty)')
-plt.xlabel('Classes (Sorted by Mean Entropy)')
-plt.title('Class-wise Uncertainty (Entropy) Box Plot')
-
-# Plot mean uncertainty as grey dashed line
-for idx, cls in enumerate(sorted_classes_entropy):
-    plt.plot([idx - 0.2, idx + 0.2], [mean_entropies[cls], mean_entropies[cls]], color='grey', linestyle='--')
-
-plt.savefig(os.path.join(output_dir, 'class_wise_uncertainty_boxplot_entropy.png'))
-plt.close()
-
-# 2. Scatter Plot of Confidence vs. Uncertainty (Entropy)
-confidences = np.max(all_predictions, axis=-1)  # Confidence as the maximum mean class probability
-entropy_values = all_entropies
-labels = all_labels
-
-plt.figure(figsize=(10, 6))
-
-# Get a color map to map each class to a unique color
-unique_labels = np.unique(labels)
-colors = cm.get_cmap('tab10', len(unique_labels)).colors
-
-# Plot each class in a different color
-for idx, cls in enumerate(unique_labels):
-    class_mask = labels == cls
-    plt.scatter(confidences[class_mask], entropy_values[class_mask], color=colors[idx], alpha=0.6)
-
-plt.xlabel('Confidence')
-plt.ylabel('Entropy (Uncertainty)')
-plt.title('Scatter Plot of Confidence vs. Uncertainty (Colored by Class)')
-plt.savefig(os.path.join(output_dir, 'scatter_plot_confidence_vs_uncertainty_colored.png'))
-plt.close()
-
-
+print(f"Saved entropy metrics in {entropy_metrics_path}")
