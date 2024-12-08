@@ -87,4 +87,4 @@ with open(metrics_path, 'wb') as f:
     pickle.dump(evaluation_metrics, f)
 
 print(f"Saved evaluation metrics to {metrics_path}")
-print(f"Overall Accuracy: {evaluation_metrics['overall_accuracy']:.2f}%")
+print(f"Overall Accuracy: {evaluation_metrics['overall_accuracy']* 100:.2f}%")
