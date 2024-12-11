@@ -29,7 +29,7 @@ def load_checkpoint(checkpoint_path, model, optimizer):
     start_epoch = checkpoint['epoch']
     return model, optimizer, start_epoch
 
-def train_model(model, num_epochs=100, batch_size=32, learning_rate=1e-4, patience=5):
+def train_model(model, num_epochs=100, batch_size=32, learning_rate=1e-4, patience=10):
     print("Initializing dataset...")
     # Initialize dataset
     train_dataset = TactileMaterialDataset('data/raw/tactmat.h5', split='train', train_split=0.8)
@@ -153,5 +153,5 @@ if __name__ == "__main__":
         model=model,
         num_epochs=100,
         batch_size=32,
-        patience=10
+        patience=15
     )

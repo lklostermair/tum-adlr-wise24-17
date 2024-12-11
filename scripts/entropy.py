@@ -11,6 +11,7 @@ import pickle
 from utils.data_loader import TactileMaterialDataset
 from models.TactNetII_model import TactNetII
 from torch.utils.data import DataLoader
+from sklearn.metrics import accuracy_score, confusion_matrix
 
 # Define output directory
 output_dir = "output"
@@ -85,13 +86,19 @@ all_variances = np.concatenate(all_variances, axis=0)  # Shape: [total_samples, 
 all_entropies = np.concatenate(all_entropies, axis=0)  # Shape: [total_samples]
 all_labels = np.concatenate(all_labels, axis=0)  # Shape: [total_samples]
 
+# Compute MC accuracy
+predicted_labels = np.argmax(all_predictions, axis=1)
+accuracy = np.mean(predicted_labels == all_labels)
+print(f"MC Accuracy: {accuracy * 100:.2f}%")
+
 # Prepare entropy metrics dictionary
 entropy_metrics = {
     'predictions': all_predictions,
     'variances': all_variances,
     'entropies': all_entropies,
     'labels': all_labels,
-    'num_mc_samples': n_samples
+    'num_mc_samples': n_samples,
+    'accuracy': accuracy
 }
 
 # Save results as a comprehensive pickle file
@@ -100,3 +107,38 @@ with open(entropy_metrics_path, 'wb') as f:
     pickle.dump(entropy_metrics, f)
 
 print(f"Saved entropy metrics in {entropy_metrics_path}")
+
+#########################################
+# Compute Class-Wise Accuracies with MC #
+#########################################
+
+num_classes = len(np.unique(all_labels))
+class_accuracies_mc = np.zeros(num_classes)
+for cls in range(num_classes):
+    cls_mask = (all_labels == cls)
+    if np.sum(cls_mask) > 0:
+        class_accuracies_mc[cls] = np.mean(predicted_labels[cls_mask] == all_labels[cls_mask]) * 100.0
+    else:
+        class_accuracies_mc[cls] = 0.0
+
+overall_accuracy_mc = accuracy_score(all_labels, predicted_labels)
+sorted_indices_mc = np.argsort(class_accuracies_mc)[::-1]
+sorted_class_accuracies_mc = class_accuracies_mc[sorted_indices_mc]
+confusion_matrix_mc = confusion_matrix(all_labels, predicted_labels)
+
+evaluation_metrics_mc = {
+    'true_labels': all_labels,
+    'predicted_labels_mc': predicted_labels,
+    'predicted_probs_mc': all_predictions,  # These are the MC-averaged predictions
+    'class_accuracies_mc': class_accuracies_mc,
+    'sorted_class_indices_mc': sorted_indices_mc,
+    'sorted_class_accuracies_mc': sorted_class_accuracies_mc,
+    'overall_accuracy_mc': overall_accuracy_mc,
+    'confusion_matrix_mc': confusion_matrix_mc
+}
+
+evaluation_metrics_mc_path = os.path.join(output_dir, "evaluation_metrics_mc.pkl")
+with open(evaluation_metrics_mc_path, 'wb') as f:
+    pickle.dump(evaluation_metrics_mc, f)
+
+print(f"MC evaluation metrics saved in {evaluation_metrics_mc_path}")

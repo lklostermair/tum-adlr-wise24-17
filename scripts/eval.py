@@ -72,10 +72,11 @@ evaluation_metrics = {
     'predicted_probs': predicted_probs,
     'class_accuracies': class_accuracies,
     'sorted_class_indices': sorted_indices,
-    'sorted_accuracies': sorted_accuracies,
+    'sorted_class_accuracies': sorted_accuracies,
     'overall_accuracy': accuracy_score(true_labels, predicted_labels),
     'confusion_matrix': confusion_matrix(true_labels, predicted_labels)
 }
+
 
 # Additional detailed classification report
 classification_rep = classification_report(true_labels, predicted_labels, output_dict=True)
