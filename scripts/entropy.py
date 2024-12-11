@@ -33,7 +33,7 @@ model.eval()
 # Load dataset for evaluation
 val_dataset = TactileMaterialDataset('data/raw/tactmat.h5', split='val', train_split=0.8)
 val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
-n_samples = 50  # Number of Monte Carlo samples
+n_samples = 100  # Number of Monte Carlo samples
 
 # Iterate over DataLoader and perform Monte Carlo Dropout Inference
 all_predictions = []
