@@ -150,7 +150,9 @@ class InvertibleImagenetClassifier(InvertibleArchitecture):
             mu_i_mu_i = torch.sum(mu.squeeze()**2, 1, keepdim=True).expand(self.n_classes, self.n_classes)
 
             dist = mu_i_mu_i + mu_i_mu_i.t() - 2 * mu_i_mu_j
-            dist = torch.masked_select(dist, (1 - torch.eye(self.n_classes).cuda()).byte()).clamp(min=0.)
+            # Update mask to use BoolTensor
+            mask = (1 - torch.eye(self.n_classes).cuda()).bool()
+            dist = torch.masked_select(dist, mask).clamp(min=0.)
             distances.append(dist)
         return distances[0] + distances[1]
 
