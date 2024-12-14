@@ -7,7 +7,7 @@ import click
 import numpy as np
 import torch.optim
 
-from ..data.imagenet import Imagenet
+from ..data.imagenet import Tactnet
 
 from ..model.backbones.invertible_resnet import InvertibleResNet
 from ..model.heads.invertible_multiclass_classifier import InvertibleMulticlassClassifier
@@ -53,7 +53,7 @@ from ..model import CouplingType
 @click.option('--checkpoints_extension', default='', help='Custom extension to the output model file for ablations')
 def train(**args):
 
-    data = Imagenet(args['data_root_folder_train'], args['data_root_folder_val'], int(args['data_batch_size']))
+    data = Tactnet(int(args['data_batch_size']))
 
     extension = args['checkpoints_extension']
 
@@ -61,7 +61,7 @@ def train(**args):
     skip_connection = False
 
     n_loss_dims_1d = int(args['model_n_loss_dims_1d'])
-    n_total_dims_1d = int(3 * data.img_crop_size[0] * data.img_crop_size[1])
+    n_total_dims_1d = int(16 * data.img_crop_size[0] * data.img_crop_size[1])
 
     coupling_type_name = args['model_coupling_type_name']
     coupling_type = CouplingType.GLOW if coupling_type_name == "GLOW" else CouplingType.SLOW
@@ -101,7 +101,7 @@ def train(**args):
         float(args['training_mu_init']),
         float(args['training_mu_conv_init']),
         args['training_mu_low_rank_k'],
-        (3, data.img_crop_size[0], data.img_crop_size[1]),
+        (16, data.img_crop_size[0], data.img_crop_size[1]),
         data.n_classes,
         n_loss_dims_1d,
         n_total_dims_1d,
