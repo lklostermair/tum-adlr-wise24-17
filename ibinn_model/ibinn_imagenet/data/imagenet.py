@@ -32,8 +32,10 @@ class Tactnet():
         self.batch_size = batch_size
 
         self.n_classes = 36
-        self.img_crop_size = (31, 31)
+        self.img_crop_size = (32, 32)
 
+
+        #TODO: This is wrong for now. The mean should be smaller since we are resizing the image from 31x31 to 32x32
         self._mu_img = np.mean(train_samples, axis=(0, 2, 3))
         self._std_img = np.std(train_samples, axis=(0, 2, 3))
 
