@@ -4,6 +4,38 @@ import torch.nn as nn
 
 '''adapted from https://github.com/zh217/torch-dct'''
 
+
+
+def _rfft(x, signal_ndim=1, onesided=True):
+    # b = torch.Tensor([[1,2,3,4,5],[2,3,4,5,6]])
+    # b = torch.Tensor([[1,2,3,4,5,6],[2,3,4,5,6,7]])
+    # torch 1.8.0 torch.fft.rfft to torch 1.5.0 torch.rfft as signal_ndim=1
+    # written by mzero
+    odd_shape1 = (x.shape[1] % 2 != 0)
+    x = torch.fft.rfft(x)
+    x = torch.cat([x.real.unsqueeze(dim=2), x.imag.unsqueeze(dim=2)], dim=2)
+    if onesided == False:
+        _x = x[:, 1:, :].flip(dims=[1]).clone() if odd_shape1 else x[:, 1:-1, :].flip(dims=[1]).clone()
+        _x[:,:,1] = -1 * _x[:,:,1]
+        x = torch.cat([x, _x], dim=1)
+    return x
+
+
+def _irfft(x, signal_ndim=1, onesided=True):
+    # b = torch.Tensor([[1,2,3,4,5],[2,3,4,5,6]])
+    # b = torch.Tensor([[1,2,3,4,5,6],[2,3,4,5,6,7]])
+    # torch 1.8.0 torch.fft.irfft to torch 1.5.0 torch.irfft as signal_ndim=1
+    # written by mzero
+    if onesided == False:
+        res_shape1 = x.shape[1]
+        x = x[:,:(x.shape[1] // 2 + 1),:]
+        x = torch.complex(x[:,:,0].float(), x[:,:,1].float())
+        x = torch.fft.irfft(x, n=res_shape1)
+    else:
+        x = torch.complex(x[:,:,0].float(), x[:,:,1].float())
+        x = torch.fft.irfft(x)
+    return x
+
 def dct_1d(x):
     """
     Discrete Cosine Transform, Type II (a.k.a. the DCT)
@@ -17,7 +49,7 @@ def dct_1d(x):
 
     v = torch.cat([x[:, ::2], x[:, 1::2].flip([1])], dim=1)
 
-    Vc = torch.rfft(v, 1, onesided=False)
+    Vc = _rfft(v, 1, False)
 
     k = - torch.arange(N, dtype=x.dtype, device=x.device)[None, :] * np.pi / (2 * N)
     W_r = torch.cos(k)
@@ -54,7 +86,7 @@ def idct_1d(X):
 
     V = torch.cat([V_r.unsqueeze(2), V_i.unsqueeze(2)], dim=2)
 
-    v = torch.irfft(V, 1, onesided=False)
+    v = _irfft(V, 1, onesided=False)
     x = v.new_zeros(v.shape)
     x[:, ::2] += v[:, :N - (N // 2)]
     x[:, 1::2] += v.flip([1])[:, :N // 2]
