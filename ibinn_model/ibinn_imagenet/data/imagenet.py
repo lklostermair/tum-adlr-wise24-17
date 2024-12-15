@@ -8,10 +8,7 @@ class Tactnet():
         super().__init__()
 
         with h5py.File('data/raw/tactmat.h5', 'r') as dataset:
-            samples = dataset['samples'][:].reshape(-1, 4, 4, 1000)[:, :,:, :961]
-
-            samples = samples.reshape(-1, 16, 31, 31)
-            
+            samples = dataset['samples'][:].reshape(-1, 4, 4000)[:,:,:3969].reshape(-1, 4, 63, 63)
             materials = [m.decode('utf-8') for m in dataset['materials'][:]]
             
         labels = np.repeat(range(len(materials)), 100)  # 100 samples per material
@@ -32,12 +29,11 @@ class Tactnet():
         self.batch_size = batch_size
 
         self.n_classes = 36
-        self.img_crop_size = (32, 32)
+        self.img_crop_size = (64, 64)
 
-
-        #TODO: This is wrong for now. The mean should be smaller since we are resizing the image from 31x31 to 32x32
-        self._mu_img = np.mean(train_samples, axis=(0, 2, 3))
-        self._std_img = np.std(train_samples, axis=(0, 2, 3))
+        # These are calculated from train after resizing to 64x64
+        self._mu_img = [0.0698, 0.0558, 0.0505, 0.0477]
+        self._std_img = [0.0277, 0.0195, 0.0168, 0.0156]
 
         self._all_one_hot_encodings = torch.eye(self.n_classes)
 
