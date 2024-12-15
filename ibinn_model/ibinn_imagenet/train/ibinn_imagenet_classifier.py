@@ -35,14 +35,14 @@ from ..model import CouplingType
 @click.option('--model_dilations', default='[1,1,1,1]', help='Dilations per block type')
 @click.option('--model_synchronized_batchnorm', is_flag=True, help='Enable global BatchNorm computation')
 @click.option('--model_fc_width', default=1024, help='Width of fully-connected layer')
-@click.option('--training_lr', default=0.07, help='Learning rate')
+@click.option('--training_lr', default=0.09, help='Learning rate')
 @click.option('--training_lr_mu', default=0.07, help='Learning rate for parameter mu')
 @click.option('--training_mu_init', default=3.5, help='Initial value for parameter mu')
 @click.option('--training_mu_conv_init', default=0.01, help='Learning rate for disjoined information')
 @click.option('--training_mu_low_rank_k', default=128, help='Low-rank approximation')
-@click.option('--training_n_epochs', default=30, help='Number of training epochs')
+@click.option('--training_n_epochs', default=200, help='Number of training epochs')
 @click.option('--training_train_nll', is_flag=True, help='Train with negative log likelihood? True/False')
-@click.option('--training_beta', default='0.5', help='Parameter beta')
+@click.option('--training_beta', default='128', help='Parameter beta')
 @click.option('--training_burn_in_iterations', default=10, help='Number of burn in iterations with lower learning rate')
 @click.option('--checkpoints_interval_log', default=1000, help='Interval to save logs')
 @click.option('--checkpoints_interval_checkpoint', default=25000, help='Interval to save checkpoints')
@@ -53,7 +53,7 @@ from ..model import CouplingType
 @click.option('--checkpoints_extension', default='', help='Custom extension to the output model file for ablations')
 def train(**args):
 
-    data = Tactnet(int(args['data_batch_size']))
+    data = Tactnet(args['data_batch_size'])
 
     extension = args['checkpoints_extension']
 
@@ -61,7 +61,7 @@ def train(**args):
     skip_connection = False
 
     n_loss_dims_1d = int(args['model_n_loss_dims_1d'])
-    n_total_dims_1d = int(16 * data.img_crop_size[0] * data.img_crop_size[1])
+    n_total_dims_1d = int(4 * data.img_crop_size[0] * data.img_crop_size[1])
 
     coupling_type_name = args['model_coupling_type_name']
     coupling_type = CouplingType.GLOW if coupling_type_name == "GLOW" else CouplingType.SLOW
@@ -101,7 +101,7 @@ def train(**args):
         float(args['training_mu_init']),
         float(args['training_mu_conv_init']),
         args['training_mu_low_rank_k'],
-        (16, data.img_crop_size[0], data.img_crop_size[1]),
+        (4, data.img_crop_size[0], data.img_crop_size[1]),
         data.n_classes,
         n_loss_dims_1d,
         n_total_dims_1d,
@@ -111,7 +111,7 @@ def train(**args):
     inn.cuda()
 
     inn_parallel = torch.nn.DataParallel(inn)
-    n_batches_per_epoch = (len(data.train_data.imgs)//data.batch_size)
+    n_batches_per_epoch = (len(data.train_data)//data.batch_size)
     N_epochs = int(args['training_n_epochs'])
 
     train_nll = args['training_train_nll']
