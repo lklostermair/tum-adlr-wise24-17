@@ -40,6 +40,10 @@ def plot_loss_curves():
     plt.savefig(os.path.join(output_dir, '1_loss_curves.png'))
     plt.close()
 
+from matplotlib.patches import Rectangle
+
+from matplotlib.patches import Rectangle
+
 # 2. Confusion Matrix Visualization (MC)
 def plot_confusion_matrix():
     with open(os.path.join(output_dir, 'evaluation_metrics_mc.pkl'), 'rb') as f:
@@ -48,16 +52,37 @@ def plot_confusion_matrix():
     true_labels = eval_metrics_mc['true_labels']
     predicted_labels_mc = eval_metrics_mc['predicted_labels_mc']
     
-    conf_matrix = confusion_matrix(true_labels, predicted_labels_mc)
+    # Normalize the confusion matrix values to [0, 1]
+    conf_matrix = confusion_matrix(true_labels, predicted_labels_mc, normalize='true')
+    
+    # Set global font sizes
+    plt.rcParams.update({
+        'axes.titlesize': 18,   # Title font size
+        'axes.labelsize': 16,   # Axis label font size
+        'xtick.labelsize': 12,  # X tick font size
+        'ytick.labelsize': 12,  # Y tick font size
+    })
     
     plt.figure(figsize=(10, 8))
-    sns.heatmap(conf_matrix, annot=False, cmap='gray_r', linewidths=0.5, square=True, cbar=True)
+    ax = sns.heatmap(conf_matrix, fmt='.2f', cmap='gray_r', linewidths=0, 
+                     square=True, cbar=True, annot_kws={"size": 14})  # Larger annotation font size
+    
+    # Add a rectangle around the matrix for a thicker border
+    num_rows, num_cols = conf_matrix.shape
+    rect = Rectangle((0, 0), num_cols, num_rows, fill=False, edgecolor='black', linewidth=2.5)
+    ax.add_patch(rect)
+
+    # Set axis labels and title
     plt.xlabel('Predicted Label')
     plt.ylabel('True Label')
     plt.title('Confusion Matrix')
     plt.tight_layout()
+
+    # Save the plot
     plt.savefig(os.path.join(output_dir, '2_confusion_matrix.png'))
     plt.close()
+
+
 
 # 3. Class-wise Accuracy Visualization (MC only)
 def plot_class_wise_accuracy():
@@ -76,20 +101,39 @@ def plot_class_wise_accuracy():
     sorted_indices = np.argsort(class_accuracies_mc)[::-1]
     sorted_accuracies_mc = class_accuracies_mc[sorted_indices]
 
+    # Set font sizes
+    plt.rcParams.update({
+        'axes.titlesize': 18,   # Title size
+        'axes.labelsize': 16,   # X and Y label size
+        'xtick.labelsize': 12,  # X tick label size
+        'ytick.labelsize': 12,  # Y tick label size
+        'legend.fontsize': 14   # Legend font size
+    })
+
     plt.figure(figsize=(12, 5))
     x_positions = np.arange(len(sorted_accuracies_mc))
 
+    # Plot the bar chart
     plt.bar(x_positions, sorted_accuracies_mc, color='blue', label='Accuracy')
 
+    # Customize ticks and labels
     plt.xticks(x_positions, sorted_indices, rotation=90)
     plt.xlabel('Material ID')
     plt.ylabel('Accuracy [%]')
     plt.axhline(y=np.mean(class_accuracies_mc), color='gray', linestyle='--', label='Mean Accuracy')
-    plt.title(f'Per-Class MC Accuracy (Total: {overall_accuracy_mc:.2f}%)')
+    plt.title(f'Per-Class Accuracy (Total: {overall_accuracy_mc:.2f}%)')
     plt.legend()
+
+    # Add thicker border
+    ax = plt.gca()  # Get the current axis
+    for spine in ax.spines.values():
+        spine.set_linewidth(2.5)  # Increase the thickness of all borders
+
+    # Save the plot
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, '3_per_class_accuracy.png'))
     plt.close()
+
 
 # 4. Entropy Metrics Visualization (MC)
 def plot_entropy_metrics():
@@ -204,7 +248,7 @@ def plot_accuracy_vs_mean_entropy():
     
     plt.xlabel('Per-Class MC Accuracy [%]')
     plt.ylabel('Mean Entropy')
-    plt.title('Scatter Plot: Mean Entropy per Class vs. Accuracy (Point Size = Std of Entropy)')
+    plt.title('Scatter Plot: Mean Entropy per Class vs. Accuracy (Point Size = Std)')
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, '6_scatter_mean_entropy_vs_accuracy.png'))

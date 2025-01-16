@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-
-import FrEIA.framework as Ff
+import FrEIA.FrEIA.framework as Ff
 
 from .. import InvertibleArchitecture
 
