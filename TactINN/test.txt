@@ -1,0 +1,563 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import FrEIA.framework as Ff
+import FrEIA.modules as Fm
+import h5py
+import sys
+import numpy as np
+from torch.utils.data import Dataset, DataLoader, random_split
+
+class SimpleMLP(nn.Module):
+    """
+    A small MLP that takes in half of the data (and possibly label embedding)
+    and outputs scale + shift parameters for an affine coupling.
+    """
+    def __init__(self, in_channels, hidden_dim=128, out_channels=16, label_dim=0):
+        super(SimpleMLP, self).__init__()
+        # If using label embeddings, add label_dim to input
+        self.fc1 = nn.Linear(in_channels + label_dim, hidden_dim)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc3 = nn.Linear(hidden_dim, out_channels * 2)  # scale & shift
+
+    def forward(self, x, y=None):
+        # x shape: (batch_size, in_channels)
+        if y is not None:
+            # Concatenate label embedding to input
+            x = torch.cat([x, y], dim=1)
+
+        x = self.fc1(x)
+        x = self.relu(x)
+        x = self.fc2(x)
+        x = self.relu(x)
+        x = self.fc3(x)
+        # Return scale & shift
+        scale, shift = torch.chunk(x, 2, dim=1)
+        return scale, shift
+
+class SimpleCNN1D(nn.Module):
+    """
+    A small 1D CNN that takes in half of the data (and possibly label embedding)
+    and outputs scale + shift parameters for an affine coupling.
+    
+    :param in_channels: Number of input features for half of the data. 
+                        (If you split the data in half, this is the size of x1 or x2.)
+    :param hidden_channels: Number of output channels in the hidden convolution layers.
+    :param kernel_size: Size of the convolution kernel.
+    :param out_channels: Final dimension for scale/shift (usually equals half-split size).
+    :param label_dim: Embedding dimension for the label (if using class-conditional flow).
+    """
+    def __init__(self,
+                 in_channels,
+                 hidden_channels=32,
+                 kernel_size=3,
+                 out_channels=16,
+                 label_dim=0):
+        super(SimpleCNN1D, self).__init__()
+        self.label_dim = label_dim
+        self.in_channels = in_channels  # The "width" for 1D conv if we treat it as (batch, 1, in_channels)
+
+        # First 1D conv layer
+        self.conv1 = nn.Conv1d(
+            in_channels=1,
+            out_channels=hidden_channels,
+            kernel_size=kernel_size,
+            padding=kernel_size // 2
+        )
+        
+        # Second 1D conv layer
+        self.conv2 = nn.Conv1d(
+            in_channels=hidden_channels,
+            out_channels=hidden_channels,
+            kernel_size=kernel_size,
+            padding=kernel_size // 2
+        )
+        
+        # Non-linear activation
+        self.relu = nn.ReLU()
+        
+        # After two conv layers, the shape is (batch_size, hidden_channels, in_channels).
+        # We'll flatten this to (batch_size, hidden_channels * in_channels).
+        self.flatten_dim = hidden_channels * in_channels
+        
+        # Final linear layer outputs 2*out_channels (scale + shift)
+        # We add label_dim if using conditional embeddings
+        self.fc_out = nn.Linear(self.flatten_dim + label_dim, out_channels * 2)
+
+    def forward(self, x, y=None):
+        """
+        :param x: Tensor of shape (batch_size, in_channels)
+        :param y: Optional label embedding of shape (batch_size, label_dim)
+        :return: (scale, shift) each of shape (batch_size, out_channels)
+        """
+        # Reshape to (batch_size, 1, in_channels) for 1D convolution
+        x = x.unsqueeze(1)  # now shape = (batch_size, 1, in_channels)
+        
+        # Pass through 1D convolutions
+        x = self.conv1(x)
+        x = self.relu(x)
+        x = self.conv2(x)
+        x = self.relu(x)
+        
+        # Flatten to (batch_size, hidden_channels * in_channels)
+        x = x.view(x.size(0), -1)
+        
+        # If labels provided, concatenate
+        if y is not None:
+            x = torch.cat([x, y], dim=1)
+        
+        # Final linear layer produces (scale, shift)
+        x = self.fc_out(x)
+        scale, shift = torch.chunk(x, 2, dim=1)
+        
+        return scale, shift
+
+
+def affine_coupling_block(in_dim, label_dim=0, hidden_dim=128, subnet_type='cnn'):
+    """
+    Create an invertible affine coupling block for 1D data.
+    We treat the entire feature dimension as one "channel".
+    """
+    print("DEBUG: affine_coupling_block in_dim =", in_dim)
+    # The CouplingBlock in FrEIA needs a callable that produces the scale/shift.
+    # We pass in a lambda that calls our MLP with the correct shapes.
+    def subnet_constructor(c_in, c_out):
+        # c_in is the size of the partition of data passed into the subnet
+        # c_out is the number of parameters to predict (scale+shift)
+        if subnet_type == 'mlp':
+            return SimpleMLP(c_in, hidden_dim, c_out // 2, label_dim=label_dim)
+        elif subnet_type == 'cnn':
+            return SimpleCNN1D(c_in, hidden_dim, out_channels=c_out // 2, label_dim=label_dim)
+
+
+    # We use the AffineCouplingOneSided with a custom subnet
+    coupling = Fm.AllInOneBlock(
+        dims_in = [(in_dim,)],
+        dims_out = [(in_dim,)],
+        subnet_constructor = subnet_constructor,
+        affine_clamping = 2.0,  # stability parameter
+        use_act_norm = True,
+        permute_soft = True,    # whether to permute inside the block
+        global_affine_init = 0.
+    )
+    return coupling
+
+class InvertibleFlow(nn.Module):
+    def __init__(self, data_dim=16000, n_blocks=6, label_dim=0, hidden_dim=128):
+        """
+        data_dim: dimension of your flattened data, e.g. 1000*16=16000
+        n_blocks: how many coupling blocks
+        label_dim: dimension of label embedding
+        hidden_dim: size of hidden layers in subnets
+        """
+        super(InvertibleFlow, self).__init__()
+        self.data_dim = data_dim
+        self.n_blocks = n_blocks
+        self.label_dim = label_dim
+
+        print("DEBUG: InvertibleFlow.__init__: self.data_dim =", self.data_dim)
+
+        # Build the computation graph
+        self.flow = Ff.SequenceINN(16000)
+
+        for k in range(self.n_blocks):
+            self.flow.append(Fm.PermuteRandom, {'seed': k})
+            # Add the coupling block
+            self.flow.append(
+                affine_coupling_block(in_dim=self.data_dim,
+                                      label_dim=label_dim,
+                                      hidden_dim=hidden_dim)
+            )
+
+        # Embedding for labels (optional)
+        if self.label_dim > 0:
+            self.label_embedding = nn.Embedding(num_embeddings=36, embedding_dim=label_dim)
+        else:
+            self.label_embedding = None
+
+    def forward(self, x, labels=None):
+        """
+        Forward pass: x -> z
+        x shape: (batch_size, data_dim)
+        labels shape: (batch_size,)  # integer class labels
+        """
+        # Optionally get label embeddings
+        if self.label_embedding is not None and labels is not None:
+            y_emb = self.label_embedding(labels)
+        else:
+            y_emb = None
+
+        # forward pass: returns z, log_detJ
+        z, log_detJ = self.flow(x, c=y_emb)
+        return z, log_detJ
+
+    def inverse(self, z, labels=None):
+        """
+        Inverse pass: z -> x
+        z shape: (batch_size, data_dim)
+        """
+        if self.label_embedding is not None and labels is not None:
+            y_emb = self.label_embedding(labels)
+        else:
+            y_emb = None
+
+        x, log_detJ = self.flow.inverse(z, c=y_emb)
+        return x, log_detJ
+class ClassConditionalGMM(nn.Module):
+    """
+    Holds parameters (mu_c, logvar_c) for each class c, 
+    representing a Gaussian in the latent space.
+    For simplicity, we assume diagonal covariance.
+    """
+    def __init__(self, n_classes, latent_dim):
+        super().__init__()
+        self.n_classes = n_classes
+        self.latent_dim = latent_dim
+        
+        # Each class has its own mean and log-variance (diagonal covariance)
+        self.mu = nn.Parameter(torch.zeros(n_classes, latent_dim))
+        self.logvar = nn.Parameter(torch.zeros(n_classes, latent_dim))
+    
+    def forward(self, z):
+        """
+        Returns log p_Z(z|c) for each class c, in a (batch_size, n_classes) tensor.
+        
+        :param z: (batch_size, latent_dim)
+        :return: log_probs: shape (batch_size, n_classes)
+                 where log_probs[i, c] = log p_Z(z[i]|c).
+        """
+        # Expand z to shape (batch_size, 1, latent_dim)
+        # so we can broadcast with (n_classes, latent_dim)
+        z_expanded = z.unsqueeze(dim=1)  # (batch_size, 1, latent_dim)
+        
+        # shape of mu: (n_classes, latent_dim)
+        # shape of logvar: (n_classes, latent_dim)
+        mu = self.mu.unsqueeze(dim=0)         # -> (1, n_classes, latent_dim)
+        logvar = self.logvar.unsqueeze(dim=0) # -> (1, n_classes, latent_dim)
+        
+        # Compute negative Mahalanobis (for diagonal covariance):
+        # (z - mu)^2 / exp(logvar)
+        # We'll do this per class c:
+        neg_mahalanobis = -0.5 * torch.sum((z_expanded - mu)**2 / torch.exp(logvar), dim=2)
+        
+        # Also subtract the normalization term: (1/2) * sum(logvar) + (D/2)*log(2*pi)
+        # D = latent_dim
+        D = self.latent_dim
+        log_det = -0.5 * torch.sum(logvar, dim=2)  # shape (1, n_classes)
+        
+        # Constant term: (D/2)*log(2*pi)
+        const = -0.5 * D * torch.log(torch.tensor([2.0 * 3.1415926535], device=z.device))
+        
+        log_probs = neg_mahalanobis + log_det + const  # shape (batch_size, n_classes)
+        
+        return log_probs
+
+def combined_loss(x, c, model, gmm, beta=1.0):
+    """
+    :param x: (batch_size, data_dim) input data
+    :param c: (batch_size,) class labels (integers 0..n_classes-1)
+    :param model: your invertible flow model, where model(x) -> (z, log_detJ)
+    :param gmm: ClassConditionalGMM instance
+    :param beta: weighting factor for classification term
+    :return: total_loss, generative_loss, classification_loss
+    """
+    # 1) Forward pass through the flow: x -> z
+    z, log_detJ = model(x)  # (batch_size, latent_dim), (batch_size,)
+    
+    # 2) Generative Loss
+    # We assume standard Gaussian p_Z(z) for L_generative 
+    # or you can do class-unconditional p_Z(z) = Normal(0, I)
+    log_pz = -0.5 * (z**2).sum(dim=1)  # ignoring constant
+    L_generative = -(log_pz + log_detJ).mean()
+    
+    # 3) Classification Loss (via GMM log-likelihood for each class)
+    # We compute log p_Z(z|c) for all classes, then do cross-entropy w.r.t. the true class.
+    all_class_log_probs = gmm(z)  # shape (batch_size, n_classes)
+    # We want - sum_{c} y_c log p_Z(z|c). 
+    # If c is the true class, the cross-entropy style approach is:
+    
+    # classification loss: cross_entropy( log_probs, c )
+    # BUT we have log p_Z(z|c) in 'all_class_log_probs'. 
+    # We can use PyTorch's log_softmax -> cross_entropy trick:
+    # cross_entropy( log_softmax(all_class_log_probs), c )
+    
+    # But note: all_class_log_probs is already in "log space" but not necessarily normalized.
+    # We can directly call: F.nll_loss( log_softmax(all_class_log_probs, dim=1 ), c )
+    log_probs_normed = Ff.log_softmax(all_class_log_probs, dim=1)  # shape (batch_size, n_classes)
+    
+    # Negative log-likelihood for the correct class
+    L_classification = Ff.nll_loss(log_probs_normed, c)
+    
+    # 4) Total Loss
+    total_loss = L_generative + beta * L_classification
+    
+    return total_loss, L_generative.detach(), L_classification.detach()
+
+class TactileDataset(Dataset):
+    """
+    A PyTorch Dataset for loading tactmat.h5 data (36 materials, 
+    each with 100 samples). It flattens the 4x4 grid into 16 features 
+    per timestep, optionally flattens time dimension as well.
+    """
+    def __init__(self, h5_filename, flatten_time_feature=True):
+        super().__init__()
+        
+        # Load HDF5
+        with h5py.File(h5_filename, 'r') as hf:
+            # Check datasets
+            if 'materials' not in hf:
+                raise KeyError("Dataset '/materials' not found in the HDF5 file.")
+            if 'samples' not in hf:
+                raise KeyError("Dataset '/samples' not found in the HDF5 file.")
+
+            # Materials: shape (36,) dtype string
+            materials_data = hf['materials'][:]
+            self.materials = [m.decode('utf-8') for m in materials_data]
+
+            # Samples: shape (36, 100, 1000, 4, 4), dtype int64
+            samples_data = hf['samples'][:]  # shape (36, 100, 1000, 4, 4)
+
+        # Flatten 4x4 -> 16
+        samples_data = samples_data.reshape(36, 100, 1000, 16)
+        
+        # We now have shape (36, 100, 1000, 16).
+        # We'll store them in a list of shape (36, 100, 1000, 16).
+        self.num_materials = 36
+        self.samples_per_material = 100
+        
+        self.flatten_time_feature = flatten_time_feature
+
+        # We'll create a big list of length 3600 (36*100),
+        # but we'll keep track of which material each sample belongs to.
+        self.data_list = []
+        self.label_list = []
+        
+        for mat_idx in range(self.num_materials):
+            for sample_idx in range(self.samples_per_material):
+                sample_3d = samples_data[mat_idx, sample_idx]  # shape (1000, 16)
+                if self.flatten_time_feature:
+                    # shape -> (1000*16,) = (16000,)
+                    sample_3d = sample_3d.reshape(-1)
+                self.data_list.append(sample_3d)
+                self.label_list.append(mat_idx)
+        
+        # Convert to Torch Tensors
+        self.data_list = torch.tensor(np.array(self.data_list), dtype=torch.float32)
+        self.label_list = torch.tensor(self.label_list, dtype=torch.long)
+
+    def __len__(self):
+        return len(self.data_list)  # 36 * 100 = 3600
+
+    def __getitem__(self, idx):
+        return self.data_list[idx], self.label_list[idx]
+def split_by_material(dataset, train_count=80, val_count=20):
+    """
+    Given the TactileDataset, produce train/val Subsets:
+    For each material's block of 100 samples:
+      - first 'train_count' go to train
+      - next 'val_count' go to val
+    
+    This yields total train=36*80=2880, val=36*20=720
+    """
+    indices_train = []
+    indices_val = []
+    
+    # Each material has 100 samples, in a contiguous block if we appended them in order.
+    # The dataset has them in the order: material 0: 100 samples, material 1: 100 samples, ...
+    # So for material i, the block is: [i*100, i*100+1, ..., i*100+99]
+    
+    for mat_idx in range(dataset.num_materials):
+        start = mat_idx * dataset.samples_per_material
+        train_inds = range(start, start + train_count)
+        val_inds = range(start + train_count, start + train_count + val_count)
+        
+        indices_train.extend(train_inds)
+        indices_val.extend(val_inds)
+    
+    # Create Subsets
+    from torch.utils.data import Subset
+    train_subset = Subset(dataset, indices_train)
+    val_subset = Subset(dataset, indices_val)
+    return train_subset, val_subset
+def get_tactile_dataloader(h5_filename, batch_size=16, shuffle=True, flatten_time_feature=True):
+    """
+    Creates a DataLoader for the TactileDataset.
+    
+    :param h5_filename: Path to the HDF5 file
+    :param batch_size: Batch size for training or inference
+    :param shuffle: Whether to shuffle the samples each epoch
+    :param flatten_time_feature: Whether to flatten (1000,16) -> (16000,) in the dataset
+    :return: A PyTorch DataLoader
+    """
+    dataset = TactileDataset(h5_filename, flatten_time_feature=flatten_time_feature)
+    dataloader = DataLoader(dataset, 
+                            batch_size=batch_size, 
+                            shuffle=shuffle, 
+                            drop_last=False, 
+                            num_workers=0)  # set num_workers>0 for parallel loading
+    return dataloader
+def train_inn(
+    h5_filename="/home/luki/tum-adlr-wise24-17/data/raw/tactmat.h5",
+    epochs=5,
+    batch_size=16,
+    beta=1.0,
+    label_dim=8,
+    hidden_dim=128,
+    n_blocks=6,
+    lr=1e-4,
+    augment=True,
+    noise_level=0.01,  # <--- define a default noise_level
+    patience=5,
+):
+    """
+    Train the InvertibleFlow + ClassConditionalGMM on 
+    a train/val split. Evaluate classification accuracy on val.
+    
+    :param h5_filename: Path to the HDF5 file.
+    :param epochs: Number of training epochs.
+    :param batch_size: Batch size for both train and val.
+    :param beta: Weight factor for classification term in combined loss.
+    :param label_dim: Embedding dimension for label embedding in the flow.
+    :param hidden_dim: Hidden dimension for the coupling block subnets.
+    :param n_blocks: Number of coupling blocks in the flow.
+    :param lr: Learning rate for the optimizer.
+    :param augment: Whether to add noise-based data augmentation.
+    :param noise_level: Amount of Gaussian noise to add if augment=True.
+    :param patience: Patience epochs for early stopping.
+    """
+
+    # 1) Prepare Dataset + DataLoaders
+    full_dataset = TactileDataset(h5_filename, flatten_time_feature=True)
+    train_dataset, val_dataset = split_by_material(full_dataset, 80, 20)
+    
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader   = DataLoader(val_dataset,   batch_size=batch_size, shuffle=False)
+    
+    data_dim = 16000
+
+    # 2) Build Model and GMM
+    flow_model = InvertibleFlow(
+        data_dim=data_dim,
+        n_blocks=n_blocks,
+        label_dim=label_dim,  # embed the labels
+        hidden_dim=hidden_dim
+    )
+    
+    gmm = ClassConditionalGMM(n_classes=36, latent_dim=data_dim)
+
+    # 3) Optimizer + Scheduler
+    params = list(flow_model.parameters()) + list(gmm.parameters())
+    optimizer = optim.Adam(params, lr=lr, weight_decay=1e-5)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)       
+    
+    # 4) Early Stopping Setup
+    best_val_loss = float('inf')
+    wait = 0
+
+    # 5) Training Loop
+    for epoch in range(epochs):
+        flow_model.train()
+        gmm.train()
+        
+        total_loss = 0.0
+        total_gen_loss = 0.0
+        total_cls_loss = 0.0
+        total_samples = 0
+        
+        # 5A) Training Phase
+        for x_batch, c_batch in train_loader:
+            print("DEBUG: x_batch.shape =", x_batch.shape)
+            if augment:
+                x_batch = x_batch + noise_level * torch.randn_like(x_batch)
+
+            optimizer.zero_grad()
+            
+            # forward + combined loss
+            loss, l_gen, l_cls = combined_loss(
+                x_batch, c_batch,
+                model=flow_model,
+                gmm=gmm,
+                beta=beta
+            )
+            
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(flow_model.parameters(), max_norm=5.0)
+            optimizer.step()
+
+            batch_size_now = x_batch.size(0)
+            total_samples += batch_size_now
+            total_loss += loss.item() * batch_size_now
+            total_gen_loss += l_gen.item() * batch_size_now
+            total_cls_loss += l_cls.item() * batch_size_now
+        
+        # Average training losses
+        avg_train_loss = total_loss / total_samples
+        avg_train_gen_loss = total_gen_loss / total_samples
+        avg_train_cls_loss = total_cls_loss / total_samples
+        
+        # 5B) Validation Phase
+        flow_model.eval()
+        gmm.eval()
+        
+        val_correct = 0
+        val_total = 0
+        val_loss_sum = 0.0
+        
+        with torch.no_grad():
+            for x_val, c_val in val_loader:
+                # Evaluate combined loss for validation
+                v_loss, _, _ = combined_loss(
+                    x_val, c_val,
+                    model=flow_model,
+                    gmm=gmm,
+                    beta=beta
+                )
+                val_loss_sum += v_loss.item() * x_val.size(0)
+                val_total += x_val.size(0)
+
+                # Classification accuracy
+                z_val, _ = flow_model(x_val, labels=c_val)
+                all_class_log_probs = gmm(z_val)
+                pred_c = torch.argmax(all_class_log_probs, dim=1)
+                
+                val_correct += (pred_c == c_val).sum().item()
+        
+        avg_val_loss = val_loss_sum / val_total
+        val_accuracy = val_correct / val_total
+        
+        # 5C) Scheduler step
+        scheduler.step()
+
+        # 5D) Early Stopping Check 
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            wait = 0
+            # Optionally save the best model here
+        else:
+            wait += 1
+            if wait >= patience:
+                print("Early stopping triggered.")
+                break
+        
+        # 5E) Print epoch summary
+        print(f"Epoch [{epoch+1}/{epochs}]")
+        print(f"  Train Loss: {avg_train_loss:.4f} (Gen: {avg_train_gen_loss:.4f}, Cls: {avg_train_cls_loss:.4f})")
+        print(f"  Val   Loss: {avg_val_loss:.4f}, Val Accuracy: {val_accuracy:.4f}\n")
+
+
+if __name__ == "__main__":
+    # Example usage
+    train_inn(
+        h5_filename="/home/luki/tum-adlr-wise24-17/data/raw/tactmat.h5",
+        epochs=5,
+        batch_size=16,
+        beta=1.0,
+        label_dim=8,
+        hidden_dim=128,
+        n_blocks=6,
+        lr=1e-4,
+        augment=True,
+        noise_level=0.01,  # define the noise amount
+        patience=5,
+    )
