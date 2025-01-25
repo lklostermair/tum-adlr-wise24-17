@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 def main():
     # Path to the results file created by train_multiple_models.py
-    results_file = "output_multiple_models/sequence_length_results.pkl"
+    results_file = "output_multiple_models/seq_length_results.pkl"
 
     with open(results_file, "rb") as f:
         results = pickle.load(f)
