@@ -10,7 +10,6 @@ if project_root not in sys.path:
 from utils.data_loader import TactileMaterialDataset
 from models.TactNetII_model import TactNetII
 from scripts.train import train_model
-from scripts.eval import evaluate_tactnet_mcdropout
 
 
 def main():
