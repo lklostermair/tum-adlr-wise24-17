@@ -29,11 +29,11 @@ def load_checkpoint(checkpoint_path, model, optimizer):
     start_epoch = checkpoint['epoch']
     return model, optimizer, start_epoch
 
-def train_model(model, num_epochs=100, batch_size=32, learning_rate=1e-4, patience=10):
+def train_model(model, num_epochs=100, batch_size=32, learning_rate=1e-4, patience=10, sequence_length=1000):
     print("Initializing dataset...")
     # Initialize dataset
-    train_dataset = TactileMaterialDataset('data/raw/tactmat.h5', split='train', train_split=0.8)
-    val_dataset = TactileMaterialDataset('data/raw/tactmat.h5', split='val', train_split=0.8)
+    train_dataset = TactileMaterialDataset('data/raw/tactmat.h5', split='train', train_split=0.8, sequence_length=sequence_length)
+    val_dataset = TactileMaterialDataset('data/raw/tactmat.h5', split='val', train_split=0.8, sequence_length=sequence_length)
 
     # Create DataLoaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -145,13 +145,15 @@ def train_model(model, num_epochs=100, batch_size=32, learning_rate=1e-4, patien
 if __name__ == "__main__":
 
     # Instantiate model
+    sequence_length = 1000
 
-    model = TactNetII(input_channels=1, num_classes=36).to(device)
+    model = TactNetII(input_channels=1, num_classes=36, sequence_length=sequence_length).to(device)
     
     # Train the model
     train_model(
         model=model,
         num_epochs=100,
         batch_size=32,
-        patience=15
+        patience=15,
+        sequence_length=sequence_length
     )
