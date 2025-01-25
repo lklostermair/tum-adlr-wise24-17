@@ -26,7 +26,7 @@ def main():
     num_epochs = 100
     batch_size = 32
     learning_rate = 1e-4
-    patience = 10
+    patience = 5
 
     results_list = []
 
