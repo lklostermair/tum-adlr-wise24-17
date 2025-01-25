@@ -25,9 +25,9 @@ class TactNetII(nn.Module):
         # Use the user-provided sequence_length to derive flattened size
         self.flattened_size = self._get_flatten_size(sequence_length, input_channels)
 
-        self.fc1 = nn.Linear(self.flattened_size, 256)
-        self.bn4 = nn.BatchNorm1d(256)
-        self.fc2 = nn.Linear(256, num_classes)
+        self.fc1 = nn.Linear(self.flattened_size, 128)
+        self.bn4 = nn.BatchNorm1d(128)
+        self.fc2 = nn.Linear(128, num_classes)
 
     def _get_flatten_size(self, seq_len, input_channels):
         with torch.no_grad():

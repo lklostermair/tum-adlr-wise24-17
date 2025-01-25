@@ -23,7 +23,7 @@ def train_model(
     batch_size=32,
     learning_rate=1e-4,
     patience=10,
-    sequence_length=1000
+    sequence_length=1000,
 ):
     """
     Trains the given TactNetII model on a dataset (train + val) created
@@ -38,13 +38,15 @@ def train_model(
         file_path='data/raw/tactmat.h5',
         split='train',
         train_split=0.8,
-        sequence_length=sequence_length
+        sequence_length=sequence_length,
+        data_augment=True
     )
     val_dataset = TactileMaterialDataset(
         file_path='data/raw/tactmat.h5',
         split='val',
         train_split=0.8,
-        sequence_length=sequence_length
+        sequence_length=sequence_length,
+        data_augment=False
     )
 
     # Create DataLoaders
