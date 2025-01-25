@@ -4,59 +4,71 @@ import torch
 from torch.utils.data import Dataset
 
 class TactileMaterialDataset(Dataset):
-    def __init__(self, file_path, split='train', train_split=0.8):
-        """
-        Custom Dataset for loading and processing tactile material data.
-
-        Args:
-            file_path (str): Path to the HDF5 file.
-            split (str): Dataset split, either 'train' or 'val'.
-            train_split (float): Proportion of the dataset to use for training.
-        """
+    def __init__(self, file_path, split='train', train_split=0.8, sequence_length=1000):
+        self.sequence_length = sequence_length
+        
         with h5py.File(file_path, 'r') as dataset:
-            samples = dataset['samples'][:]  # Shape: [materials, samples, time_steps, taxels_x, taxels_y]
+            samples = dataset['samples'][:]
             materials = dataset['materials'][:]
-            materials = [m.decode('utf-8') for m in materials]  # Decode material names if necessary
+            materials = [m.decode('utf-8') for m in materials]
 
-        # Set seed for reproducibility
         np.random.seed(42)
 
-        # Shuffle samples within each class
+        # Shuffle samples
         for i in range(samples.shape[0]):
             np.random.shuffle(samples[i])
 
-        # Splits dataset into train and validation
-        total_size = samples.shape[1]  # Number of samples per class
+        total_size = samples.shape[1]
         train_size = int(train_split * total_size)
-
-        # Generate indices for splitting
         indices = np.arange(total_size)
         np.random.shuffle(indices)
-        train_indices = indices[:train_size]
-        val_indices = indices[train_size:]
 
         if split == 'train':
-            self.data = samples[:, train_indices, ...]  # Training samples
-            self.labels = np.repeat(np.arange(samples.shape[0]), len(train_indices))  # Class labels
+            chosen_indices = indices[:train_size]
         elif split == 'val':
-            self.data = samples[:, val_indices, ...]  # Validation samples
-            self.labels = np.repeat(np.arange(samples.shape[0]), len(val_indices))
+            chosen_indices = indices[train_size:]
         else:
-            raise ValueError("Invalid split value. Must be 'train' or 'val'.")
+            raise ValueError("split must be 'train' or 'val'")
 
-        # Flatten the taxels (4x4 -> 16) and reshape to [num_samples, time_steps, features]
-        self.data = self.data.reshape((-1, samples.shape[2], 16))
+        data_split = samples[:, chosen_indices, ...]  
+        label_split = np.repeat(np.arange(samples.shape[0]), len(chosen_indices))
 
-        # Convert to PyTorch tensors
-        self.data = torch.tensor(self.data, dtype=torch.float32).unsqueeze(1)  # Add channel dimension
-        self.labels = torch.tensor(self.labels, dtype=torch.long)
+        # Flatten
+        self.full_sequences = data_split.reshape(-1, data_split.shape[2], data_split.shape[3], data_split.shape[4])
+        self.labels = label_split
 
-        # Debugging
-        print(f"{split.capitalize()} dataset size: {len(self.data)}")
-        assert len(self.data) == len(self.labels), "Data and labels length mismatch!"
+        all_snippets = []
+        all_labels = []
+
+        for i in range(len(self.full_sequences)):
+            full_seq = self.full_sequences[i]  # shape: [T, 4, 4]
+            label = self.labels[i]
+
+            T = full_seq.shape[0]
+            if T < self.sequence_length:
+                raise ValueError(f"Sequence length {self.sequence_length} is longer than original sequence length {T}")
+
+            start_idx = np.random.randint(0, T - self.sequence_length + 1)
+            snippet = full_seq[start_idx : start_idx + self.sequence_length]
+
+            # Flatten [4,4] -> 16
+            snippet = snippet.reshape(self.sequence_length, 16)
+
+            all_snippets.append(snippet)
+            all_labels.append(label)
+
+        self.snippets = torch.tensor(all_snippets, dtype=torch.float32)
+        self.labels   = torch.tensor(all_labels, dtype=torch.long)
+
+        # Add the channel dimension if your model expects [N, 1, T, 16]
+        self.snippets = self.snippets.unsqueeze(1)  # shape => [N, 1, seq_len, 16]
+
+        print(f"{split.capitalize()} dataset final size: {len(self.snippets)}")
+        print(f"Snippet shape: {self.snippets.shape}")  
 
     def __len__(self):
-        return len(self.data)
+        return len(self.snippets)
 
     def __getitem__(self, idx):
-        return self.data[idx], self.labels[idx]
+        return self.snippets[idx], self.labels[idx]
+
