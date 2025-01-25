@@ -23,7 +23,7 @@ def main():
     seq_lengths = range(100, 1001, 50)
 
     # Common training hyperparameters
-    num_epochs = 20       # For demonstration
+    num_epochs = 100       # For demonstration
     batch_size = 32
     learning_rate = 1e-4
     patience = 10
