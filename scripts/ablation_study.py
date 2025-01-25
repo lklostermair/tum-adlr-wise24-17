@@ -10,7 +10,6 @@ if project_root not in sys.path:
 from utils.data_loader import TactileMaterialDataset
 from models.TactNetII_model import TactNetII
 from scripts.train import train_model
-from scripts.eval import evaluate_tactnet_mcdropout
 
 
 def main():
@@ -21,7 +20,7 @@ def main():
     os.makedirs(multi_output_dir, exist_ok=True)
 
     # We'll run these sequence lengths
-    seq_lengths = range(50, 1001, 50)
+    seq_lengths = range(100, 1001, 50)
 
     # Common training hyperparameters
     num_epochs = 20       # For demonstration
