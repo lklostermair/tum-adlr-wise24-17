@@ -25,7 +25,7 @@ def train_model(
     Trains the given TactNetII model on a dataset (train + val) created
     for a specified sequence_length, with early stopping.
 
-    Returns a dictionary containing final metrics and paths.
+    Returns a dictionary containing metrics, including best accuracies and paths.
     """
 
     print("Initializing dataset...")
@@ -45,7 +45,7 @@ def train_model(
 
     # Create DataLoaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    val_loader   = DataLoader(val_dataset,   batch_size=batch_size, shuffle=False)
     
     # Loss, optimizer, and LR scheduler
     criterion = nn.CrossEntropyLoss()
@@ -59,7 +59,12 @@ def train_model(
     val_accuracies = []
 
     best_val_loss = float('inf')
+    best_val_acc = 0.0       # Will store the best validation accuracy
+    best_train_acc = 0.0     # Training accuracy at the time we got best val
+    best_epoch = 0
     no_improve_count = 0
+
+    best_model_path = os.path.join(output_dir, f"best_model_seq_{sequence_length}.pt")
 
     losses_filename = f"losses_seq_{sequence_length}.pkl"
     accuracies_filename = f"val_accuracies_seq_{sequence_length}.pkl"
@@ -114,17 +119,22 @@ def train_model(
 
         val_loss /= len(val_loader)
         val_accuracy = val_correct / len(val_dataset)
+
         val_losses.append(val_loss)
         val_accuracies.append(val_accuracy)
 
         # -----------------------------
-        # 3) Early stopping
+        # 3) Check if this is a new best
         # -----------------------------
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            best_model_path = os.path.join(output_dir, f"best_model_seq_{sequence_length}.pt")
+            best_val_acc = val_accuracy
+            best_train_acc = train_acc   # Training accuracy at this best epoch
+            best_epoch = epoch + 1
+
+            # Save model checkpoint
             torch.save(model.state_dict(), best_model_path)
-            print(f"Saved best model at epoch {epoch + 1}: {best_model_path}")
+            print(f"Saved best model at epoch {best_epoch}: {best_model_path}")
             no_improve_count = 0
         else:
             no_improve_count += 1
@@ -157,28 +167,32 @@ def train_model(
         }, f)
 
     print("Training complete.")
+    print(f"Best epoch = {best_epoch}, Best Val Acc = {best_val_acc*100:.2f}%")
 
-    final_train_acc = train_accuracies[-1]
-    final_val_acc = val_accuracies[-1]
-
+    # Return best accuracies, not the final ones
     return {
         "best_model_path": best_model_path,
+        "best_epoch": best_epoch,
+        "best_val_loss": best_val_loss,
+        "best_val_acc": best_val_acc,
+        "best_train_acc": best_train_acc,
         "train_losses": train_losses,
         "val_losses": val_losses,
         "train_accuracies": train_accuracies,
-        "val_accuracies": val_accuracies,
-        "final_train_acc": final_train_acc,
-        "final_val_acc": final_val_acc
+        "val_accuracies": val_accuracies
     }
 
 if __name__ == "__main__":
     seq_len = 1000
     model = TactNetII(input_channels=1, num_classes=36, sequence_length=seq_len).to(device)
 
-    train_model(
+    results = train_model(
         model=model,
         num_epochs=100,
         batch_size=32,
         patience=15,
         sequence_length=seq_len
     )
+    print("Best epoch:", results["best_epoch"])
+    print("Best val accuracy: {:.2f}%".format(results["best_val_acc"] * 100))
+    print("Corresponding train accuracy: {:.2f}%".format(results["best_train_acc"] * 100))
