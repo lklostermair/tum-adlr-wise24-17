@@ -13,16 +13,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 output_dir = "output"  
 os.makedirs(output_dir, exist_ok=True)
 
-def save_checkpoint(state, filename="checkpoint.pth.tar"):
-    torch.save(state, filename)
-
-def load_checkpoint(checkpoint_path, model, optimizer):
-    checkpoint = torch.load(checkpoint_path)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    start_epoch = checkpoint['epoch']
-    return model, optimizer, start_epoch
-
 def train_model(
     model,
     num_epochs=100,
@@ -33,7 +23,7 @@ def train_model(
 ):
     """
     Trains the given TactNetII model on a dataset (train + val) created
-    for a specified sequence_length, with early stopping and checkpointing.
+    for a specified sequence_length, with early stopping.
 
     Returns a dictionary containing final metrics and paths.
     """
@@ -71,8 +61,6 @@ def train_model(
     best_val_loss = float('inf')
     no_improve_count = 0
 
-    # Unique filenames so they don't get overwritten on reruns
-    best_model_filename = f"best_model_seq_{sequence_length}.pt"
     losses_filename = f"losses_seq_{sequence_length}.pkl"
     accuracies_filename = f"val_accuracies_seq_{sequence_length}.pkl"
 
@@ -130,29 +118,11 @@ def train_model(
         val_accuracies.append(val_accuracy)
 
         # -----------------------------
-        # 3) Checkpointing
+        # 3) Early stopping
         # -----------------------------
-        # Save checkpoint every 25 epochs
-        if (epoch + 1) % 25 == 0:
-            checkpoint_path = os.path.join(
-                output_dir,
-                f"checkpoint_epoch_{epoch + 1}_seq_{sequence_length}.pth.tar"
-            )
-            save_checkpoint({
-                'epoch': epoch + 1,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'train_losses': train_losses,
-                'val_losses': val_losses,
-                'train_accuracies': train_accuracies,
-                'val_accuracies': val_accuracies
-            }, filename=checkpoint_path)
-            print(f"Saved checkpoint at epoch {epoch + 1}: {checkpoint_path}")
-
-        # Early stopping & best model save
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            best_model_path = os.path.join(output_dir, best_model_filename)
+            best_model_path = os.path.join(output_dir, f"best_model_seq_{sequence_length}.pt")
             torch.save(model.state_dict(), best_model_path)
             print(f"Saved best model at epoch {epoch + 1}: {best_model_path}")
             no_improve_count = 0
@@ -192,7 +162,7 @@ def train_model(
     final_val_acc = val_accuracies[-1]
 
     return {
-        "best_model_path": os.path.join(output_dir, best_model_filename),
+        "best_model_path": best_model_path,
         "train_losses": train_losses,
         "val_losses": val_losses,
         "train_accuracies": train_accuracies,

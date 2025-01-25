@@ -20,7 +20,7 @@ def main():
     os.makedirs(multi_output_dir, exist_ok=True)
 
     # We'll run these sequence lengths
-    seq_lengths = range(100, 1001, 50)
+    seq_lengths = range(100, 1001, 100)
 
     # Common training hyperparameters
     num_epochs = 100       # For demonstration
