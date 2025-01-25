@@ -67,8 +67,9 @@ class TactileMaterialDataset(Dataset):
 
             # Add Gaussian noise if augmentation is enabled
             if self.data_augment:
-                noise = np.random.normal(loc=0.0, scale=0.01, size=snippet.shape)  # Small Gaussian noise
+                noise = np.random.normal(loc=0.0, scale=0.01, size=snippet.shape).astype(snippet.dtype)
                 snippet += noise
+
 
             all_snippets.append(snippet)
             all_labels.append(label)
