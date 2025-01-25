@@ -4,3 +4,5 @@ output/*.pth.tar
 output/best_model.pt
 FrEIA/
 __pycache__/
+*.pt
+*.pyc
