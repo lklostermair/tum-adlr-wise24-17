@@ -6,3 +6,4 @@ FrEIA/
 __pycache__/
 *.pt
 *.pyc
+wandb/
