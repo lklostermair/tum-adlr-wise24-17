@@ -2,6 +2,7 @@ import sys
 import os
 import pickle
 import torch
+from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -56,7 +57,7 @@ def train_model(
     # Loss, optimizer, and LR scheduler
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=170, gamma=0.1)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5, verbose=True)
 
     # Tracking metrics
     train_losses = []
@@ -77,14 +78,11 @@ def train_model(
 
     print("Starting training...")
     for epoch in range(num_epochs):
-        # -----------------------------
-        # 1) Training Phase
-        # -----------------------------
         model.train()
         train_loss = 0.0
         train_correct = 0
 
-        for X, y in train_loader:
+        for X, y in tqdm(train_loader):
             X, y = X.to(device), y.to(device)
 
             optimizer.zero_grad()
@@ -106,9 +104,6 @@ def train_model(
         train_losses.append(train_loss)
         train_accuracies.append(train_acc)
 
-        # -----------------------------
-        # 2) Validation Phase
-        # -----------------------------
         model.eval()
         val_loss = 0.0
         val_correct = 0
@@ -129,16 +124,12 @@ def train_model(
         val_losses.append(val_loss)
         val_accuracies.append(val_accuracy)
 
-        # -----------------------------
-        # 3) Check if this is a new best
-        # -----------------------------
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_val_acc = val_accuracy
             best_train_acc = train_acc   # Training accuracy at this best epoch
             best_epoch = epoch + 1
 
-            # Save model checkpoint
             torch.save(model.state_dict(), best_model_path)
             print(f"Saved best model at epoch {best_epoch}: {best_model_path}")
             no_improve_count = 0
@@ -158,10 +149,6 @@ def train_model(
         # Step LR scheduler
         scheduler.step()
 
-    # -----------------------------
-    # 4) Final Saves
-    # -----------------------------
-    # Save the loss curves
     with open(os.path.join(output_dir, losses_filename), "wb") as f:
         pickle.dump({"train_losses": train_losses, "val_losses": val_losses}, f)
 
@@ -175,7 +162,6 @@ def train_model(
     print("Training complete.")
     print(f"Best epoch = {best_epoch}, Best Val Acc = {best_val_acc*100:.2f}%")
 
-    # Return best accuracies, not the final ones
     return {
         "best_model_path": best_model_path,
         "best_epoch": best_epoch,

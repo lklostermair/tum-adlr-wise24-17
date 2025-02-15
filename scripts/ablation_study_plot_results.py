@@ -32,8 +32,7 @@ def main():
     # ------------------------
     plt.figure(figsize=(8,6))
 
-    # Plot training accuracy
-    plt.plot(seq_lengths, train_accuracies, label="Training Accuracy", marker='o')
+
 
     # Plot validation accuracy
     plt.plot(seq_lengths, val_accuracies, label="Validation Accuracy", marker='o')
